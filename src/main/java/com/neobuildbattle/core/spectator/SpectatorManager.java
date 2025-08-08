@@ -13,10 +13,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.block.Action;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.UUID;
 
@@ -35,6 +38,8 @@ public final class SpectatorManager implements Listener {
         player.setAllowFlight(true);
         player.setFlying(true);
         player.getInventory().clear();
+        // Infinite invisibility without particles
+        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, true, false, false));
         giveCompass(player);
     }
 
@@ -48,10 +53,13 @@ public final class SpectatorManager implements Listener {
 
     @EventHandler
     public void onCompassUse(PlayerInteractEvent e) {
+        if (e.getAction() != Action.RIGHT_CLICK_AIR && e.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         ItemStack item = e.getItem();
         if (item == null || item.getType() != Material.COMPASS) return;
         Player p = e.getPlayer();
-        if (p.getGameMode() != GameMode.SPECTATOR) return;
+        // Only for spectators (non-participants)
+        boolean isSpectator = !plugin.getPlayerRegistry().getActivePlayers().contains(p.getUniqueId());
+        if (!isSpectator) return;
         openTeleportGui(p);
         e.setCancelled(true);
     }

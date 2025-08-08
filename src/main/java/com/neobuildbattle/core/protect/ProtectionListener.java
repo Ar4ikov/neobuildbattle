@@ -11,6 +11,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.block.SignChangeEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 
 public final class ProtectionListener implements Listener {
     private final NeoBuildBattleCore plugin;
@@ -49,6 +54,29 @@ public final class ProtectionListener implements Listener {
     @EventHandler
     public void onPickup(EntityPickupItemEvent e) {
         if (e.getEntity() instanceof Player p && inVotingOrSpectator(p)) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInteract(PlayerInteractEvent e) {
+        Player p = e.getPlayer();
+        if (!inVotingOrSpectator(p)) return;
+        // Разрешаем только использование нашего компаса у спектаторов; остальное блокируем
+        if (e.getItem() != null && e.getItem().getType() == org.bukkit.Material.COMPASS) {
+            // Если это участник — компас им обычно не выдаётся; если выдан, не блокируем
+            return;
+        }
+        Action a = e.getAction();
+        if (a == Action.RIGHT_CLICK_BLOCK || a == Action.LEFT_CLICK_BLOCK || a == Action.PHYSICAL) {
+            e.setCancelled(true);
+        }
+    }
+
+    @EventHandler
+    public void onInteractEntity(PlayerInteractEntityEvent e) {
+        Player p = e.getPlayer();
+        if (inVotingOrSpectator(p)) {
             e.setCancelled(true);
         }
     }
