@@ -41,7 +41,8 @@ public final class ProtectionListener implements Listener {
 
     private boolean inVotingOrSpectator(Player p) {
         GameState s = plugin.getGameManager().getState();
-        return s == GameState.THEME_VOTING || s == GameState.EVALUATION || p.getGameMode() == GameMode.SPECTATOR;
+        boolean isSpectator = !plugin.getPlayerRegistry().getActivePlayers().contains(p.getUniqueId());
+        return s == GameState.THEME_VOTING || s == GameState.EVALUATION || isSpectator;
     }
 
     @EventHandler

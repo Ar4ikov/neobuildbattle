@@ -2,6 +2,7 @@ package com.neobuildbattle.core.spectator;
 
 import com.neobuildbattle.core.NeoBuildBattleCore;
 import com.neobuildbattle.core.plot.Plot;
+import org.bukkit.NamespacedKey;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -28,9 +29,12 @@ public final class SpectatorManager implements Listener {
     private static final String TELEPORT_GUI_TITLE = "Телепорт к игроку";
 
     private final NeoBuildBattleCore plugin;
+    private final java.util.Set<java.util.UUID> currentSpectators = new java.util.HashSet<>();
+    private final NamespacedKey teleportKey;
 
     public SpectatorManager(NeoBuildBattleCore plugin) {
         this.plugin = plugin;
+        this.teleportKey = new NamespacedKey(plugin, "teleport_target");
     }
 
     public void makeSpectator(Player player) {
@@ -41,6 +45,15 @@ public final class SpectatorManager implements Listener {
         // Infinite invisibility without particles
         player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, true, false, false));
         giveCompass(player);
+        currentSpectators.add(player.getUniqueId());
+        // Hide spectator from everyone and hide other spectators from him
+        for (Player other : Bukkit.getOnlinePlayers()) {
+            if (other.equals(player)) continue;
+            other.hidePlayer(plugin, player);
+            if (currentSpectators.contains(other.getUniqueId())) {
+                player.hidePlayer(plugin, other);
+            }
+        }
     }
 
     private void giveCompass(Player player) {
@@ -75,6 +88,8 @@ public final class SpectatorManager implements Listener {
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(offline);
             meta.displayName(Component.text(name));
+            // Store owner UUID for reliable teleport
+            meta.getPersistentDataContainer().set(teleportKey, org.bukkit.persistence.PersistentDataType.STRING, ownerId.toString());
             head.setItemMeta(meta);
             inv.setItem(slot++, head);
         }
@@ -83,35 +98,34 @@ public final class SpectatorManager implements Listener {
 
     @EventHandler
     public void onTeleportClick(InventoryClickEvent e) {
-        if (!(e.getView().title() instanceof Component component) ||
-                !Component.text(TELEPORT_GUI_TITLE).equals(component)) {
-            return;
-        }
+        // Identify our items by PersistentDataContainer key
+        ItemStack clicked = e.getCurrentItem();
+        if (clicked == null || clicked.getType() != Material.PLAYER_HEAD) return;
+        ItemMeta meta = clicked.getItemMeta();
+        if (meta == null) return;
+        String idStr = meta.getPersistentDataContainer().get(teleportKey, org.bukkit.persistence.PersistentDataType.STRING);
+        if (idStr == null) return;
         e.setCancelled(true);
-        if (e.getCurrentItem() == null || e.getCurrentItem().getType() != Material.PLAYER_HEAD) return;
         HumanEntity clicker = e.getWhoClicked();
-        ItemMeta meta = e.getCurrentItem().getItemMeta();
-        String name = meta.hasDisplayName() ? Component.text().content(meta.displayName().toString()).build().content() : null;
-        // Fallback: try by slot owner name in skull meta
-        if (name == null || name.isEmpty()) {
-            if (meta instanceof SkullMeta skullMeta && skullMeta.getOwningPlayer() != null) {
-                name = skullMeta.getOwningPlayer().getName();
+        try {
+            UUID ownerId = java.util.UUID.fromString(idStr);
+            Plot plot = plugin.getPlotManager().getPlotByOwner(ownerId);
+            if (plot != null) {
+                clicker.teleport(plot.getViewLocation());
+            }
+        } catch (IllegalArgumentException ignored) { }
+    }
+
+    public void showAll() {
+        // Reveal everyone and clear spectator set
+        for (Player a : Bukkit.getOnlinePlayers()) {
+            for (Player b : Bukkit.getOnlinePlayers()) {
+                if (!a.equals(b)) {
+                    a.showPlayer(plugin, b);
+                }
             }
         }
-        if (name == null || name.isEmpty()) return;
-        // Teleport to the plot of selected player by name
-        UUID ownerId = null;
-        for (UUID id : plugin.getPlotManager().getAllOwners()) {
-            OfflinePlayer op = Bukkit.getOfflinePlayer(id);
-            if (op.getName() != null && op.getName().equalsIgnoreCase(name)) {
-                ownerId = id;
-                break;
-            }
-        }
-        if (ownerId == null) return;
-        Plot plot = plugin.getPlotManager().getPlotByOwner(ownerId);
-        if (plot == null) return;
-        clicker.teleport(plot.getViewLocation());
+        currentSpectators.clear();
     }
 }
 

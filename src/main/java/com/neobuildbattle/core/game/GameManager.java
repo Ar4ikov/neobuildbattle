@@ -353,8 +353,11 @@ public final class GameManager implements Listener {
                 p.getInventory().clear();
                 p.setGameMode(GameMode.ADVENTURE);
                 p.setAllowFlight(false);
+                p.getActivePotionEffects().forEach(pe -> p.removePotionEffect(pe.getType()));
                 lobbyManager.sendToLobby(p);
             }
+            // Reveal all hidden players and reset spectator tracking
+            NeoBuildBattleCore.getInstance().getSpectatorManager().showAll();
             plotManager.resetArenaAsync();
             state = GameState.WAITING;
             // auto-try next round
