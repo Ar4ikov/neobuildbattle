@@ -1,0 +1,37 @@
+max-players: 16
+matrix-size: 4
+build-area-size: 65
+plot-floor-material: WHITE_CONCRETE
+plot-wall-material: WHITE_CONCRETE
+plot-wall-height: 50
+plot-ring-material: LIGHT_GRAY_CONCRETE
+max-build-height: 40
+countdown-seconds: 20
+theme-vote-seconds: 10
+build-seconds: 420
+evaluation-seconds-per-plot: 20
+
+worlds:
+  lobby: lobby
+  game: arena
+
+lobby-spawn:
+  world: world
+  x: 0.5
+  y: 64.0
+  z: 0.5
+  yaw: 0.0
+  pitch: 0.0
+
+lobby-platform:
+  size: 7
+  material: QUARTZ_BLOCK
+
+arena-origin:
+  world: world
+  x: 100.0
+  y: 64.0
+  z: 100.0
+plot-gap: 5
+
+

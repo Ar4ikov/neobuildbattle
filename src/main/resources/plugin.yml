@@ -1,0 +1,34 @@
+name: NeoBuildBattleCore
+main: com.neobuildbattle.core.NeoBuildBattleCore
+version: ${version}
+api-version: '1.21'
+author: NeoBuildBattle
+description: Core plugin for Neo Build Battle mode
+load: STARTUP
+loadbefore:
+  - Multiverse-Core
+softdepend:
+  - BlockProtect
+commands:
+  neobb:
+    description: Admin commands for NeoBB
+    usage: "/neobb <forcestart|state <name>|end|debug>"
+    aliases: [nbb]
+    permission: neobb.admin
+    permission-message: "You do not have permission to use this command."
+  neobbsetup:
+    description: Setup commands for NeoBB
+    usage: "/neobbsetup <setlobbyspawn|setarenaorigin|setarenaworld>"
+    aliases: [nbbsetup]
+    permission: neobb.setup
+    permission-message: "You do not have permission to use this command."
+permissions:
+  neobb.admin:
+    description: Allows using NeoBB admin commands
+    default: op
+  neobb.setup:
+    description: Allows using NeoBB setup commands
+    default: op
+permissions: {}
+
+

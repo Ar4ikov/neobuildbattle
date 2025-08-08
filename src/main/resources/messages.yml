@@ -1,0 +1,22 @@
+prefix: "&a&lNeoBB &8» &r"
+
+join: "{prefix}&7{player} &aзашел на сервер. Онлайн: &f{players_online}&7/&f{max_players}"
+quit: "{prefix}&7{player} &cвышел. Онлайн: &f{players_online}&7/&f{max_players}"
+
+countdown_start: "{prefix}&eДостигнут минимум игроков. Старт через &6{seconds}&es!"
+countdown_tick: "{prefix}&eДо старта: &6{seconds}s"
+countdown_cancelled: "{prefix}&cНедостаточно игроков. Отсчет остановлен."
+
+theme_voting_start: "{prefix}&bГолосование темы! Откройте меню и выберите тему."
+theme_chosen: "{prefix}&bТема: &a{theme}"
+
+building_start: "{prefix}&aСтроительство началось! У вас &f{minutes}&a минут."
+building_tick: "{prefix}&aОсталось &f{mm}:{ss}"
+
+evaluation_start: "{prefix}&dОценивание построек началось!"
+evaluation_next: "{prefix}&dОцениваем постройку &f{player}"
+
+winner: "{prefix}&6Победитель: &e{player}"
+no_winner: "{prefix}&6Победитель: &7никто"
+
+

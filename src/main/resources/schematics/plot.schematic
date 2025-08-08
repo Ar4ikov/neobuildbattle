@@ -1,0 +1,17 @@
+# Plot box with inner 65x65 build area and one-block no-build ring
+# size: (65 + 2 ring + 2 outer wall) = 69
+size 69 6 69
+# outer wall (2 blocks thick ring as '#') height 4
+fill 0 0 0 68 0 68 WHITE_CONCRETE
+fill 0 1 0 68 1 68 WHITE_CONCRETE
+fill 0 2 0 68 2 68 WHITE_CONCRETE
+fill 0 3 0 68 3 68 WHITE_CONCRETE
+# carve inner rectangle (remove center area + ring to build custom layers)
+fill 1 0 1 67 3 67 AIR
+# 'x' ring (no-build): 1-block ring inside, make it 1 block high
+fill 1 0 1 67 0 67 LIGHT_GRAY_CONCRETE
+fill 2 0 2 66 0 66 AIR
+# floor build area (65x65) as '.' at y=0, use material configurable later when placing
+# we keep as AIR here; PlotManager will lay floor with config material to guarantee match
+
+

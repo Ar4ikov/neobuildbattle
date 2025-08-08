@@ -1,0 +1,15 @@
+# Lobby: lit box
+size 9 6 9
+# floor
+fill 0 0 0 8 0 8 QUARTZ_BLOCK
+# walls (hollow)
+fill 0 1 0 8 4 0 QUARTZ_BLOCK
+fill 0 1 8 8 4 8 QUARTZ_BLOCK
+fill 0 1 0 0 4 8 QUARTZ_BLOCK
+fill 8 1 0 8 4 8 QUARTZ_BLOCK
+# ceiling
+fill 0 5 0 8 5 8 QUARTZ_BLOCK
+# light
+4 5 4 GLOWSTONE
+
+

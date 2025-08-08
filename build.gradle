@@ -1,0 +1,79 @@
+import groovy.json.JsonSlurper
+plugins {
+    id 'java'
+}
+
+group = 'com.neobuildbattle'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri('https://repo.papermc.io/repository/maven-public/')
+    }
+}
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.6-R0.1-SNAPSHOT'
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+    filteringCharset = 'UTF-8'
+    filesMatching('plugin.yml') {
+        expand(
+                'version': project.version
+        )
+    }
+}
+
+tasks.register('downloadPaperServer') {
+    group = 'paper'
+    description = 'Download latest Paper server for configured version'
+
+    def version = '1.21.6'
+    def apiUrl = new URL("https://api.papermc.io/v2/projects/paper/versions/${version}")
+    def jsonText = apiUrl.text
+    def json = new JsonSlurper().parseText(jsonText)
+    def buildNum = json.builds[-1]
+    def appName = "paper-${version}-${buildNum}.jar"
+    def downloadUrl = new URL("https://api.papermc.io/v2/projects/paper/versions/${version}/builds/${buildNum}/downloads/${appName}")
+
+    def serverDir = file("server")
+    if (!serverDir.exists()) serverDir.mkdirs()
+    def outFile = new File(serverDir, appName)
+
+    outputs.file(outFile)
+
+    doLast {
+        println "Downloading Paper ${version} build ${buildNum}..."
+        downloadUrl.withInputStream { i -> outFile.withOutputStream { it << i } }
+        println "Saved to ${outFile}"
+    }
+}
+
+tasks.register('copyPluginToServer', Copy) {
+    group = 'paper'
+    description = 'Copy built plugin jar into server/plugins'
+    dependsOn tasks.named('jar')
+    from(layout.buildDirectory.dir('libs'))
+    include("${project.name}-${project.version}.jar")
+    into('server/plugins')
+}
+
+jar {
+    archiveBaseName.set(project.name)
+    archiveVersion.set(project.version.toString())
+}
+
+
