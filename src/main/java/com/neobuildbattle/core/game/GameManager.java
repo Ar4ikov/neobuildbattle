@@ -247,7 +247,8 @@ public final class GameManager implements Listener {
                 player.setGameMode(GameMode.ADVENTURE);
                 player.setAllowFlight(true);
                 player.getInventory().clear();
-                if (!player.getUniqueId().equals(ownerId)) {
+                boolean isParticipant = playerRegistry.getActivePlayers().contains(player.getUniqueId());
+                if (isParticipant && !player.getUniqueId().equals(ownerId)) {
                     plot.giveScoreItems(player);
                 }
                 player.teleport(plot.getViewLocation());
@@ -264,6 +265,7 @@ public final class GameManager implements Listener {
                     // Tally votes for this plot
                     for (Player viewer : Bukkit.getOnlinePlayers()) {
                         if (viewer.getUniqueId().equals(ownerId)) continue;
+                        if (!playerRegistry.getActivePlayers().contains(viewer.getUniqueId())) continue; // only participants vote
                         int score = NeoBuildBattleCore.getInstance().getScoreListener().consumeScore(viewer.getUniqueId());
                         if (score > 0) {
                             votingScoreboard.addScore(ownerId, score);

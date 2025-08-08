@@ -19,6 +19,10 @@ public final class PlayerRegistry {
     public Set<UUID> getActivePlayers() {
         return Collections.unmodifiableSet(activePlayers);
     }
+
+     public boolean isActive(UUID id) {
+         return activePlayers.contains(id);
+     }
 }
 
 

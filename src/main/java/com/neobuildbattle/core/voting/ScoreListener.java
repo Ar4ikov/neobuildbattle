@@ -18,6 +18,11 @@ public final class ScoreListener implements Listener {
     @EventHandler
     public void onClick(PlayerInteractEvent e) {
         Player p = e.getPlayer();
+        // Only allow participants to vote
+        if (!com.neobuildbattle.core.NeoBuildBattleCore.getInstance().getPlayerRegistry().getActivePlayers().contains(p.getUniqueId())) {
+            e.setCancelled(true);
+            return;
+        }
         ItemStack item = p.getInventory().getItemInMainHand();
         if (item == null) return;
         Material m = item.getType();

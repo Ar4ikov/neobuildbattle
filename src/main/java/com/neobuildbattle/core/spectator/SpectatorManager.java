@@ -31,7 +31,9 @@ public final class SpectatorManager implements Listener {
     }
 
     public void makeSpectator(Player player) {
-        player.setGameMode(GameMode.SPECTATOR);
+        player.setGameMode(GameMode.ADVENTURE);
+        player.setAllowFlight(true);
+        player.setFlying(true);
         player.getInventory().clear();
         giveCompass(player);
     }
