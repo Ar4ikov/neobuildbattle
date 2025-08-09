@@ -29,8 +29,9 @@ public final class GradientTones {
         if (ordered.isEmpty()) return Material.AIR;
         double n = simplex(x * 0.07, y * 0.07, z * 0.07);
         double bias = Math.max(0.0, Math.min(1.0, t01));
-        double mix = 0.75 * bias + 0.25 * (n * 0.5 + 0.5); // mostly height-driven with a bit of spray noise
-        int idx = (int) Math.round(mix * (ordered.size() - 1));
+        // Гарантировать полное покрытие 8 тонов сверху вниз: используем линейную карту высоты + лёгкий шум
+        double mix = Math.max(0.0, Math.min(1.0, 0.85 * bias + 0.15 * (n * 0.5 + 0.5)));
+        int idx = (int) Math.floor(mix * (ordered.size()));
         idx = Math.max(0, Math.min(ordered.size() - 1, idx));
         return ordered.get(idx);
     }

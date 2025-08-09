@@ -117,8 +117,15 @@ public final class GradientToolManager implements Listener {
         try {
             var idx = plugin.getBlockToneIndex();
             if (idx != null) {
-                // Родственная гамма по оттенку: +- 0.06 по тону (в HSL), порядка 8 материалов
+                // Если кликнули по стеклу — работаем только со стеклом
+                boolean glass = base.name().contains("GLASS");
                 List<Material> band = idx.hueBand(base, 8, 0.06);
+                if (glass) {
+                    band.removeIf(m -> !m.name().contains("GLASS"));
+                    if (!band.contains(base)) band.add(0, base);
+                } else {
+                    band.removeIf(m -> m.name().contains("GLASS"));
+                }
                 return band;
             }
         } catch (Throwable ignored) {}

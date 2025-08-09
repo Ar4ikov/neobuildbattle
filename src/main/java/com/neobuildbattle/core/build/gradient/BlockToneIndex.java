@@ -63,6 +63,11 @@ public final class BlockToneIndex {
             if (n.contains("BANNER") || n.contains("PRESSURE_PLATE") || n.contains("BUTTON") || n.contains("CARPET") || n.contains("HEAD") || n.contains("SKULL")) continue;
             // exclude redstone components except full blocks (lamp, block)
             if (n.startsWith("REDSTONE_") && !n.equals("REDSTONE_BLOCK") && !n.equals("REDSTONE_LAMP")) continue;
+            if (n.contains("ORE") || n.contains("ANCIENT_DEBRIS")) continue; // исключить руды
+            if (n.contains("GLOWSTONE_DUST")) continue;
+            if (n.contains("GLAZED_TERRACOTTA")) continue; // глазурованная терракота
+            if (n.contains("SHULKER_BOX")) continue; // шалкеры
+            if (n.contains("SHULKER_BOXES")) continue;
             if (n.contains("REPEATER") || n.contains("COMPARATOR") || n.equals("LEVER") || n.contains("TRIPWIRE")) continue;
             fullBlocks.add(m);
         }

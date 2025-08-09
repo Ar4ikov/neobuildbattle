@@ -45,7 +45,7 @@ public final class PatternGui {
             ItemStack paper = new ItemStack(Material.PAPER);
             ItemMeta meta = paper.getItemMeta();
             if (meta != null) {
-                meta.setDisplayName(ChatColor.BLUE + "Градиент x" + pattern.getGradientWeight());
+                meta.setDisplayName(ChatColor.BLUE + "Градиент");
                 paper.setItemMeta(meta);
             }
             inv.setItem(slot, paper);

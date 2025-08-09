@@ -53,7 +53,9 @@ public final class PatternClickHandler implements GuiClickHandler {
                 delta = left ? 1 : -1;
                 Material target;
                 if (current.getType() == Material.BARRIER) target = Material.AIR; else target = current.getType();
-                if (target == Material.AIR || target.isBlock()) {
+                if (current.getType() == Material.PAPER && isGradientToken(current)) {
+                    pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + delta));
+                } else if (target == Material.AIR || target.isBlock()) {
                     if (target != Material.AIR) {
                         String n = target.name();
                         if (n.endsWith("_SLAB") || n.endsWith("_STAIRS") || n.contains("WALL") || n.contains("FENCE") || n.contains("PANE")) return;
@@ -109,7 +111,10 @@ public final class PatternClickHandler implements GuiClickHandler {
         if (it.getType() != Material.PAPER) return false;
         var meta = it.getItemMeta(); if (meta == null) return false;
         String name = meta.getDisplayName();
-        return name != null && name.startsWith(ChatColor.BLUE + "Градиент: ");
+        if (name == null) return false;
+        String p1 = ChatColor.BLUE + "Градиент: ";
+        String p2 = ChatColor.BLUE + "Градиент";
+        return name.startsWith(p1) || name.startsWith(p2);
     }
 
     private String neat(Material m) { return m.name().toLowerCase().replace('_', ' '); }
