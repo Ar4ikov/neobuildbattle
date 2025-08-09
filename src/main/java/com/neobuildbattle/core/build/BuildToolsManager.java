@@ -10,6 +10,7 @@ import com.neobuildbattle.core.build.time.TimeGui;
 import com.neobuildbattle.core.build.weather.WeatherGui;
 import com.neobuildbattle.core.build.particles.ParticlesGui;
 import com.neobuildbattle.core.build.gradients.GradientsGui;
+import com.neobuildbattle.core.build.pattern.PatternGui;
 import com.neobuildbattle.core.game.GameManager;
 import com.neobuildbattle.core.game.GameState;
 import com.neobuildbattle.core.plot.Plot;
@@ -248,7 +249,38 @@ public final class BuildToolsManager implements Listener {
                 }
             } else {
                 // Allow interacting with player inventory while GUI open
-                event.setCancelled(false);
+                // Intercept shift-clicks to add to pattern instead of moving items visually
+                if (holder.type == GuiType.PATTERN && event.isShiftClick()) {
+                    ItemStack current = event.getCurrentItem();
+                    if (current != null && current.getType() != Material.AIR) {
+                        event.setCancelled(true);
+                        var pattern = NeoBuildBattleCore.getInstance().getAdvancedToolsManager().getOrCreatePattern(player);
+                        int amt = Math.max(1, current.getAmount());
+                        if (isGradientToken(current)) {
+                            pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + amt));
+                            Material base = parseGradientBase(current);
+                            if (base != null) {
+                                java.util.List<Material> tones = NeoBuildBattleCore.getInstance().getBlockToneIndex().gradientFor(base);
+                                pattern.setGradient(new com.neobuildbattle.core.build.pattern.GradientTones(tones));
+                            }
+                        } else if (current.getType().isBlock() || current.getType() == Material.BARRIER) {
+                            Material target = (current.getType() == Material.BARRIER) ? Material.AIR : current.getType();
+                            if (target != Material.AIR) {
+                                String n = target.name();
+                                if (n.endsWith("_SLAB") || n.endsWith("_STAIRS") || n.contains("WALL") || n.contains("FENCE") || n.contains("PANE")) {
+                                    return;
+                                }
+                            }
+                            int cur = pattern.getWeightsView().getOrDefault(target, 0);
+                            pattern.setWeight(target, Math.max(0, cur + amt));
+                        }
+                        // Refresh UI
+                        Inventory newInv = NeoBuildBattleCore.getInstance().getPatternGui().create(player, pattern);
+                        player.openInventory(newInv);
+                    }
+                } else {
+                    event.setCancelled(false);
+                }
             }
         }
 
@@ -271,7 +303,7 @@ public final class BuildToolsManager implements Listener {
             }
             int topSize = event.getView().getTopInventory().getSize();
             boolean affectsTop = event.getRawSlots().stream().anyMatch(s -> s < topSize);
-                if (holder.type == GuiType.MAIN && affectsTop) {
+            if (holder.type == GuiType.MAIN && affectsTop) {
                 int floorSlot = 10;
                 if (event.getRawSlots().contains(floorSlot)) {
                     ItemStack cursor = event.getOldCursor();
@@ -282,6 +314,37 @@ public final class BuildToolsManager implements Listener {
                         openMainGui(player);
                         return;
                     }
+                }
+                event.setCancelled(true);
+            } else if (holder.type == GuiType.PATTERN && affectsTop) {
+                // Treat drag as bulk add to pattern using the old cursor stack size
+                ItemStack cursor = event.getOldCursor();
+                if (cursor != null && cursor.getType() != Material.AIR) {
+                    event.setCancelled(true);
+                    var pattern = NeoBuildBattleCore.getInstance().getAdvancedToolsManager().getOrCreatePattern(player);
+                    int amt = Math.max(1, cursor.getAmount());
+                    if (isGradientToken(cursor)) {
+                        pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + amt));
+                        Material base = parseGradientBase(cursor);
+                        if (base != null) {
+                            java.util.List<Material> tones = NeoBuildBattleCore.getInstance().getBlockToneIndex().gradientFor(base);
+                            pattern.setGradient(new com.neobuildbattle.core.build.pattern.GradientTones(tones));
+                        }
+                    } else if (cursor.getType().isBlock() || cursor.getType() == Material.BARRIER) {
+                        Material target = (cursor.getType() == Material.BARRIER) ? Material.AIR : cursor.getType();
+                        if (target != Material.AIR) {
+                            String n = target.name();
+                            if (n.endsWith("_SLAB") || n.endsWith("_STAIRS") || n.contains("WALL") || n.contains("FENCE") || n.contains("PANE")) {
+                                return;
+                            }
+                        }
+                        int cur = pattern.getWeightsView().getOrDefault(target, 0);
+                        pattern.setWeight(target, Math.max(0, cur + amt));
+                    }
+                    // Re-open to reflect changes instantly
+                    Inventory newInv = NeoBuildBattleCore.getInstance().getPatternGui().create(player, pattern);
+                    player.openInventory(newInv);
+                    return;
                 }
                 event.setCancelled(true);
             }
@@ -631,6 +694,34 @@ public final class BuildToolsManager implements Listener {
         if (count == 0) {
             giveBuildTool(player);
         }
+    }
+
+    // ---------- Pattern GUI helpers ----------
+    private boolean isGradientToken(ItemStack it) {
+        if (it == null || it.getType() != Material.PAPER) return false;
+        ItemMeta meta = it.getItemMeta();
+        if (meta == null) return false;
+        String name = meta.getDisplayName();
+        if (name == null) return false;
+        String p1 = ChatColor.BLUE + "Градиент: ";
+        String p2 = ChatColor.BLUE + "Градиент";
+        return name.startsWith(p1) || name.startsWith(p2);
+    }
+
+    private Material parseGradientBase(ItemStack it) {
+        if (it == null || it.getType() != Material.PAPER) return null;
+        ItemMeta meta = it.getItemMeta();
+        if (meta == null) return null;
+        String name = meta.getDisplayName();
+        if (name == null) return null;
+        String p = ChatColor.BLUE + "Градиент: ";
+        if (name.startsWith(p)) {
+            String matName = name.substring(p.length()).trim();
+            try {
+                return Material.matchMaterial(matName);
+            } catch (Throwable ignored) {}
+        }
+        return null;
     }
 
     // Expose small helpers for click handlers

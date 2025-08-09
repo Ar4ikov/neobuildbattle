@@ -17,6 +17,12 @@ import org.bukkit.event.block.Action;
 // removed unused imports
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
+import org.bukkit.event.block.LeavesDecayEvent;
+import org.bukkit.event.block.BlockFadeEvent;
+import org.bukkit.event.block.BlockFormEvent;
+import org.bukkit.event.block.BlockGrowEvent;
+import org.bukkit.event.block.BlockSpreadEvent;
+import org.bukkit.event.block.BlockFertilizeEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.Material;
 // removed unused imports
@@ -93,9 +99,8 @@ public final class ProtectionListener implements Listener {
     @EventHandler
     public void onPhysics(BlockPhysicsEvent e) {
         Material m = e.getBlock().getType();
-        if (m == Material.SAND || m == Material.GRAVEL || m == Material.RED_SAND || m == Material.ANVIL || m == Material.DRAGON_EGG || m == Material.SCAFFOLDING || m == Material.SUSPICIOUS_GRAVEL || m == Material.SUSPICIOUS_SAND || m.name().endsWith("_CONCRETE_POWDER")) {
-            e.setCancelled(true);
-        }
+        // Отключаем общую физику обновлений (кроме редстоуна и жидкостей) — чтобы растения/листва не рушились
+        if (!isRedstoneBlock(m) && m != Material.WATER && m != Material.LAVA) e.setCancelled(true);
     }
 
     // Allow fluid flow for water/lava; BlockFromToEvent covers spreading
@@ -107,6 +112,19 @@ public final class ProtectionListener implements Listener {
         }
         // allow only fluids, cancel other from-to physics
         e.setCancelled(true);
+    }
+
+    // Отключаем распад листвы, рост/распространение/формирование растений и т.п.
+    @EventHandler public void onLeaves(LeavesDecayEvent e) { e.setCancelled(true); }
+    @EventHandler public void onFade(BlockFadeEvent e) { e.setCancelled(true); }
+    @EventHandler public void onForm(BlockFormEvent e) { e.setCancelled(true); }
+    @EventHandler public void onGrow(BlockGrowEvent e) { e.setCancelled(true); }
+    @EventHandler public void onSpread(BlockSpreadEvent e) { e.setCancelled(true); }
+    @EventHandler public void onFertilize(BlockFertilizeEvent e) { e.setCancelled(true); }
+
+    private boolean isRedstoneBlock(Material m) {
+        String n = m.name();
+        return n.startsWith("REDSTONE_") || n.contains("REPEATER") || n.contains("COMPARATOR") || n.equals("LEVER") || n.contains("PISTON") || n.contains("OBSERVER") || n.contains("TRIPWIRE") || n.contains("TARGET");
     }
 
     // 2) Cancel natural mob spawning (allow only SPAWNER_EGG)

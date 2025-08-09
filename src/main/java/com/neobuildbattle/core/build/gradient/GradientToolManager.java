@@ -97,12 +97,9 @@ public final class GradientToolManager implements Listener {
         Material m = b.getType();
         List<Material> band = computeGradientBandFor(m);
         GradientTones tones = new GradientTones(band);
-        // push into player's pattern as gradient with weight 1 by default
-        var pattern = plugin.getAdvancedToolsManager().getOrCreatePattern(e.getPlayer());
-        pattern.setGradient(tones);
-        pattern.setGradientWeight(pattern.getGradientWeight() + 1);
-        e.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.BLUE + "Градиент выбран по " + m.name()));
-        // also add an inventory token with NBT storing the chosen gradient base
+        // Не добавляем сразу в паттерн. Просто выдаём токен пользователю.
+        e.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.BLUE + "Градиент рассчитан по " + m.name()));
+        // add an inventory token with NBT-like semantic via display name
         ItemStack token = new ItemStack(Material.PAPER);
         ItemMeta tm = token.getItemMeta();
         tm.setDisplayName(ChatColor.BLUE + "Градиент: " + m.name());
@@ -116,18 +113,7 @@ public final class GradientToolManager implements Listener {
         // prefer cached tone index if available
         try {
             var idx = plugin.getBlockToneIndex();
-            if (idx != null) {
-                // Если кликнули по стеклу — работаем только со стеклом
-                boolean glass = base.name().contains("GLASS");
-                List<Material> band = idx.hueBand(base, 8, 0.06);
-                if (glass) {
-                    band.removeIf(m -> !m.name().contains("GLASS"));
-                    if (!band.contains(base)) band.add(0, base);
-                } else {
-                    band.removeIf(m -> m.name().contains("GLASS"));
-                }
-                return band;
-            }
+            if (idx != null) return idx.gradientFor(base);
         } catch (Throwable ignored) {}
         // If known band exists, prefer it
         List<Material> preset = toneBands.get(base);

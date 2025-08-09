@@ -4,6 +4,7 @@ import com.neobuildbattle.core.NeoBuildBattleCore;
 import com.neobuildbattle.core.build.gui.BuildGuiHolder;
 import com.neobuildbattle.core.build.gui.GuiType;
 import com.neobuildbattle.core.build.pattern.BlockPattern;
+import com.neobuildbattle.core.build.pattern.GradientTones;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -24,6 +25,24 @@ public final class PatternClickHandler implements GuiClickHandler {
         if (!(inv.getHolder() instanceof BuildGuiHolder holder) || holder.type != GuiType.PATTERN) return;
 
         BlockPattern pattern = plugin.getAdvancedToolsManager().getOrCreatePattern(player);
+        // Allow using the dedicated Air control (slot 53) to add/remove air or pick a barrier token for drag
+        if (rawSlot == 53) {
+            event.setCancelled(true);
+            boolean left = event.getClick() == ClickType.LEFT;
+            boolean right = event.getClick() == ClickType.RIGHT;
+            if (left || right) {
+                int delta = left ? 1 : -1;
+                int cur = pattern.getWeightsView().getOrDefault(org.bukkit.Material.AIR, 0);
+                pattern.setWeight(org.bukkit.Material.AIR, Math.max(0, cur + delta));
+                // Put a barrier on cursor for convenience so player can also drag it into the grid
+                if (left && (event.getCursor() == null || event.getCursor().getType() == Material.AIR)) {
+                    event.setCursor(new ItemStack(Material.BARRIER, 1));
+                }
+                rerender(inv, pattern);
+            }
+            return;
+        }
+
         if (isInner(rawSlot)) {
             event.setCancelled(true);
             ItemStack cursor = event.getCursor();
@@ -37,7 +56,14 @@ public final class PatternClickHandler implements GuiClickHandler {
                 int amt = Math.max(1, cursor.getAmount());
                 delta = left ? amt : -amt;
                 if (isGradientToken(cursor)) {
-                    pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + delta));
+                    // Update gradient weight and tones from the token
+                    int newWeight = Math.max(0, pattern.getGradientWeight() + delta);
+                    pattern.setGradientWeight(newWeight);
+                    Material base = parseGradientBase(cursor);
+                    if (base != null) {
+                        var list = plugin.getBlockToneIndex().gradientFor(base);
+                        pattern.setGradient(new GradientTones(list));
+                    }
                 } else if (cursor.getType().isBlock() || cursor.getType() == Material.BARRIER) {
                     Material target = cursor.getType() == Material.BARRIER ? Material.AIR : cursor.getType();
                     // Фильтр неполных блоков
@@ -54,7 +80,8 @@ public final class PatternClickHandler implements GuiClickHandler {
                 Material target;
                 if (current.getType() == Material.BARRIER) target = Material.AIR; else target = current.getType();
                 if (current.getType() == Material.PAPER && isGradientToken(current)) {
-                    pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + delta));
+                    int newWeight = Math.max(0, pattern.getGradientWeight() + delta);
+                    pattern.setGradientWeight(newWeight);
                 } else if (target == Material.AIR || target.isBlock()) {
                     if (target != Material.AIR) {
                         String n = target.name();
@@ -84,6 +111,18 @@ public final class PatternClickHandler implements GuiClickHandler {
             }
         }
         int idx = 0;
+        // First, place gradient token if present
+        if (pattern.getGradientWeight() > 0 && idx < 28) {
+            int slot = (1 + (idx / 7)) * 9 + (1 + (idx % 7));
+            ItemStack paper = new ItemStack(Material.PAPER);
+            ItemMeta meta = paper.getItemMeta();
+            if (meta != null) {
+                meta.setDisplayName(ChatColor.BLUE + "Градиент" + ChatColor.GRAY + " x" + pattern.getGradientWeight());
+                paper.setItemMeta(meta);
+            }
+            inv.setItem(slot, paper);
+            idx++;
+        }
         for (Map.Entry<Material, Integer> e : pattern.getWeightsView().entrySet()) {
             if (idx >= 28) break;
             int slot = (1 + (idx / 7)) * 9 + (1 + (idx % 7));
@@ -115,6 +154,22 @@ public final class PatternClickHandler implements GuiClickHandler {
         String p1 = ChatColor.BLUE + "Градиент: ";
         String p2 = ChatColor.BLUE + "Градиент";
         return name.startsWith(p1) || name.startsWith(p2);
+    }
+
+    private Material parseGradientBase(ItemStack it) {
+        if (it == null || it.getType() != Material.PAPER) return null;
+        ItemMeta meta = it.getItemMeta();
+        if (meta == null) return null;
+        String name = meta.getDisplayName();
+        if (name == null) return null;
+        String p = ChatColor.BLUE + "Градиент: ";
+        if (name.startsWith(p)) {
+            String matName = name.substring(p.length()).trim();
+            try {
+                return Material.matchMaterial(matName);
+            } catch (Throwable ignored) {}
+        }
+        return null;
     }
 
     private String neat(Material m) { return m.name().toLowerCase().replace('_', ' '); }

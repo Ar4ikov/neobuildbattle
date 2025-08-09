@@ -35,7 +35,7 @@ public final class PatternGui {
         ItemStack airIcon = ItemFactory.named(Material.BARRIER, ChatColor.GRAY + "Воздух", List.of(ChatColor.GRAY + "Перетащите в сетку, чтобы добавить"));
         inv.setItem(53, airIcon);
 
-        // Summary paper at bottom middle (slot 49)
+        // Summary paper at bottom middle (slot 49) - will be updated below
         inv.setItem(49, ItemFactory.named(Material.PAPER, ChatColor.GREEN + "Сводка", List.of(ChatColor.GRAY + "Перетаскивайте блоки внутрь", ChatColor.GRAY + "Барьер — воздух")));
 
         // Заполнить текущие элементы паттерна в сетку 4x7
@@ -45,7 +45,7 @@ public final class PatternGui {
             ItemStack paper = new ItemStack(Material.PAPER);
             ItemMeta meta = paper.getItemMeta();
             if (meta != null) {
-                meta.setDisplayName(ChatColor.BLUE + "Градиент");
+                meta.setDisplayName(ChatColor.BLUE + "Градиент" + ChatColor.GRAY + " x" + pattern.getGradientWeight());
                 paper.setItemMeta(meta);
             }
             inv.setItem(slot, paper);
@@ -69,6 +69,8 @@ public final class PatternGui {
             inv.setItem(slot, it);
             idx++;
         }
+        // Also refresh summary to include percentages and gradient line
+        updateSummary(inv, pattern);
         return inv;
     }
 
