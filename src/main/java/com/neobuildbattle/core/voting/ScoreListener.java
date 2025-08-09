@@ -46,6 +46,18 @@ public final class ScoreListener implements Listener {
     public void reset() {
         lastScore.clear();
     }
+
+    public void clearVotingItems(Player p) {
+        // Remove score items from hotbar
+        for (int i = 0; i < 9; i++) {
+            ItemStack it = p.getInventory().getItem(i);
+            if (it == null) continue;
+            switch (it.getType()) {
+                case RED_TERRACOTTA, ORANGE_TERRACOTTA, YELLOW_TERRACOTTA, LIME_TERRACOTTA, GREEN_TERRACOTTA, EMERALD_BLOCK -> p.getInventory().setItem(i, null);
+                default -> {}
+            }
+        }
+    }
 }
 
 

@@ -113,6 +113,13 @@ public final class PlotManager {
                     }
                 }
             }
+
+            // Place an invisible barrier layer one block below the floor to prevent falling entities/blocks
+            for (int x = 0; x < buildArea; x++) {
+                for (int z = 0; z < buildArea; z++) {
+                    world.getBlockAt(minX + 3 + x, y - 1, minZ + 3 + z).setType(org.bukkit.Material.BARRIER, false);
+                }
+            }
             idx++;
         }
     }

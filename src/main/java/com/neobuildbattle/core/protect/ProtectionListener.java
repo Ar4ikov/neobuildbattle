@@ -16,6 +16,10 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.block.BlockPhysicsEvent;
+import org.bukkit.event.block.BlockFromToEvent;
+import org.bukkit.Material;
+import org.bukkit.block.data.Levelled;
 
 public final class ProtectionListener implements Listener {
     private final NeoBuildBattleCore plugin;
@@ -79,6 +83,24 @@ public final class ProtectionListener implements Listener {
         Player p = e.getPlayer();
         if (inVotingOrSpectator(p)) {
             e.setCancelled(true);
+        }
+    }
+
+    // Disable physics for falling blocks and other unstable blocks; keep only fluid flow
+    @EventHandler
+    public void onPhysics(BlockPhysicsEvent e) {
+        Material m = e.getBlock().getType();
+        if (m == Material.SAND || m == Material.GRAVEL || m == Material.RED_SAND || m == Material.ANVIL || m == Material.DRAGON_EGG || m.name().equals("CONCRETE_POWDER") || m == Material.SCAFFOLDING) {
+            e.setCancelled(true);
+        }
+    }
+
+    // Allow fluid flow for water/lava; BlockFromToEvent covers spreading
+    @EventHandler
+    public void onFluid(BlockFromToEvent e) {
+        Material m = e.getBlock().getType();
+        if (m == Material.WATER || m == Material.LAVA || m == Material.KELP || m == Material.SEAGRASS) {
+            return;
         }
     }
 }

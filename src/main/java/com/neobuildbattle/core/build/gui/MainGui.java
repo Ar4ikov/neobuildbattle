@@ -24,6 +24,7 @@ public final class MainGui {
         inv.setItem(10, ItemFactory.named(defaultFloor, ChatColor.GREEN + "Смена пола", List.of(ChatColor.GRAY + "Клик — применить, перетащите блок — заменить")));
         inv.setItem(11, ItemFactory.named(Material.IRON_PICKAXE, ChatColor.YELLOW + "Инструменты", List.of(ChatColor.GRAY + "Открыть")));
         inv.setItem(12, ItemFactory.named(Material.CLOCK, ChatColor.GOLD + "Время суток", List.of(ChatColor.GRAY + "Выбрать")));
+        inv.setItem(13, ItemFactory.named(Material.OAK_SAPLING, ChatColor.GREEN + "Биомы", List.of(ChatColor.GRAY + "Выбрать")));
         inv.setItem(14, ItemFactory.named(Material.WATER_BUCKET, ChatColor.AQUA + "Погода", List.of(ChatColor.GRAY + "Выбрать")));
         inv.setItem(15, ItemFactory.named(Material.FIREWORK_ROCKET, ChatColor.LIGHT_PURPLE + "Партиклы", List.of(ChatColor.GRAY + "Открыть")));
         inv.setItem(16, ItemFactory.named(Material.PAINTING, ChatColor.BLUE + "Градиенты", List.of(ChatColor.GRAY + "Открыть")));

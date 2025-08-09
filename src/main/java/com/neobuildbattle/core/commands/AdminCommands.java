@@ -24,7 +24,7 @@ public final class AdminCommands implements CommandExecutor {
             return true;
         }
         if (args.length == 0) {
-            sender.sendMessage("/neobb <forcestart|state <name>|end|debug>");
+            sender.sendMessage("/neobb <forcestart|state <name>|end|debug|reloadguis>");
             return true;
         }
         String sub = args[0].toLowerCase();
@@ -100,6 +100,16 @@ public final class AdminCommands implements CommandExecutor {
                 }
             }
             case "debug" -> sender.sendMessage(Component.text("State: ").append(Component.text(plugin.getGameManager().toString())));
+            case "reloadguis" -> {
+                plugin.getBuildToolsManager().reloadGradients();
+                sender.sendMessage("Gradients reloaded");
+                // Ensure biomes.yml exists but do not overwrite user edits
+                try {
+                    java.io.File f = new java.io.File(plugin.getDataFolder(), "biomes.yml");
+                    if (!f.exists()) plugin.saveResource("biomes.yml", false);
+                } catch (IllegalArgumentException ignored) {}
+                sender.sendMessage("Biomes config checked. Reopen menus to see changes.");
+            }
             default -> sender.sendMessage("Unknown subcommand");
         }
         return true;

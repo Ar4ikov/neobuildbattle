@@ -5,12 +5,18 @@ import com.neobuildbattle.core.build.gui.BuildGuiHolder;
 import com.neobuildbattle.core.build.gui.GuiType;
 import com.neobuildbattle.core.build.gui.MainGui;
 import com.neobuildbattle.core.build.ui.ItemFactory;
+import com.neobuildbattle.core.build.biome.BiomeGui;
+import com.neobuildbattle.core.build.time.TimeGui;
+import com.neobuildbattle.core.build.weather.WeatherGui;
+import com.neobuildbattle.core.build.particles.ParticlesGui;
+import com.neobuildbattle.core.build.gradients.GradientsGui;
 import com.neobuildbattle.core.game.GameManager;
 import com.neobuildbattle.core.game.GameState;
 import com.neobuildbattle.core.plot.Plot;
 import com.neobuildbattle.core.plot.PlotManager;
 import org.bukkit.*;
 import org.bukkit.entity.Player;
+import org.bukkit.block.Biome;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.*;
@@ -103,6 +109,14 @@ public final class BuildToolsManager implements Listener {
             p.resetPlayerTime();
             p.resetPlayerWeather();
         }
+        // Reset biomes for all tracked plots back to default
+        try {
+            Biome defaultBiome = Biome.THE_VOID; // reasonable default for arena reset
+            for (UUID owner : new ArrayList<>(plotEnv.keySet())) {
+                Plot plot = plotManager.getPlotByOwner(owner);
+                if (plot != null) applyBiomeToPlotInternal(plot, defaultBiome);
+            }
+        } catch (Throwable ignored) {}
         playerState.clear();
         plotEnv.clear();
     }
@@ -209,6 +223,8 @@ public final class BuildToolsManager implements Listener {
                     handleParticlesClick(player, raw);
                 } else if (type == GuiType.GRADIENTS) {
                     handleGradientsClick(player, raw);
+                } else if (type == GuiType.BIOMES) {
+                    handleBiomesClick(player, raw);
                 }
             } else {
                 // Allow interacting with player inventory while GUI open
@@ -241,7 +257,7 @@ public final class BuildToolsManager implements Listener {
                     ItemStack cursor = event.getOldCursor();
                     if (cursor != null && cursor.getType().isBlock()) {
                         event.setCancelled(true);
-                        setFloorTo(player, cursor.getType());
+                        applyFloor(player, cursor.getType());
                         openMainGui(player);
                         return;
                     }
@@ -286,191 +302,68 @@ public final class BuildToolsManager implements Listener {
         openLater(player, inv);
     }
 
-    private void openToolsGui(Player player) {
-        Inventory inv = Bukkit.createInventory(new BuildGuiHolder(GuiType.TOOLS), 54, ChatColor.YELLOW + "Инструменты");
+    public void openToolsGui(Player player) {
+        Inventory inv = com.neobuildbattle.core.build.tools.ToolsGui.render();
         fillBackground(inv);
-        // Placeholder content for now
-        inv.setItem(22, ItemFactory.named(Material.BARRIER, ChatColor.RED + "В разработке", List.of(ChatColor.GRAY + "Скоро")));
         openLater(player, inv);
     }
 
-    private void openTimeGui(Player player) {
-        Inventory inv = Bukkit.createInventory(new BuildGuiHolder(GuiType.TIME), 36, ChatColor.GOLD + "Выбор времени");
+    public void openTimeGui(Player player) {
+        Inventory inv = TimeGui.render();
         fillBackground(inv);
-        // Arrange times
-        String[] labels = {"0:00", "3:00", "6:00", "9:00", "12:00", "15:00", "18:00", "21:00"};
-        int[] slots = {11, 12, 13, 14, 15, 22, 23, 24};
-        for (int i = 0; i < labels.length; i++) {
-            inv.setItem(slots[i], ItemFactory.named(Material.CLOCK, ChatColor.YELLOW + labels[i], null));
-        }
         openLater(player, inv);
     }
 
-    private void openWeatherGui(Player player) {
-        Inventory inv = Bukkit.createInventory(new BuildGuiHolder(GuiType.WEATHER), 27, ChatColor.AQUA + "Погода");
+    public void openWeatherGui(Player player) {
+        Inventory inv = WeatherGui.render();
         fillBackground(inv);
-        inv.setItem(11, ItemFactory.named(Material.SUNFLOWER, ChatColor.YELLOW + "Ясно", null));
-        inv.setItem(13, ItemFactory.named(Material.WATER_BUCKET, ChatColor.BLUE + "Дождь", null));
-        inv.setItem(15, ItemFactory.named(Material.LIGHTNING_ROD, ChatColor.DARK_BLUE + "Шторм", null));
         openLater(player, inv);
     }
 
-    private void openParticlesGui(Player player) {
-        Inventory inv = Bukkit.createInventory(new BuildGuiHolder(GuiType.PARTICLES), 54, ChatColor.LIGHT_PURPLE + "Партиклы");
+    public void openParticlesGui(Player player) {
+        Inventory inv = ParticlesGui.render(particleTypeKey, particleEraserKey);
         fillBackground(inv);
-        // Center row with items (infinite)
-        placeParticleItem(inv, 20, Particle.HAPPY_VILLAGER, Material.EMERALD, ChatColor.GREEN + "Жители");
-        placeParticleItem(inv, 21, Particle.HEART, Material.POPPY, ChatColor.RED + "Сердечки");
-        placeParticleItem(inv, 22, Particle.FLAME, Material.BLAZE_POWDER, ChatColor.GOLD + "Огонь");
-        placeParticleItem(inv, 23, Particle.LARGE_SMOKE, Material.CAMPFIRE, ChatColor.GRAY + "Дым");
-        placeParticleItem(inv, 24, Particle.POOF, Material.TNT, ChatColor.DARK_RED + "Взрывы");
-        placeParticleItem(inv, 29, Particle.WITCH, Material.POTION, ChatColor.DARK_PURPLE + "Ведьма");
-        placeParticleItem(inv, 30, Particle.SOUL, Material.SOUL_SOIL, ChatColor.AQUA + "Души");
-        placeParticleItem(inv, 31, Particle.SOUL_FIRE_FLAME, Material.SOUL_TORCH, ChatColor.BLUE + "Синий огонь");
-        // right bottom slot milk bucket eraser
-        ItemStack eraser = ItemFactory.named(Material.MILK_BUCKET, ChatColor.WHITE + "Удаление точки", List.of(ChatColor.GRAY + "Кликните в мире по точке, чтобы удалить"));
-        ItemMeta meta = eraser.getItemMeta();
-        if (meta != null) {
-            meta.getPersistentDataContainer().set(particleEraserKey, PersistentDataType.INTEGER, 1);
-            eraser.setItemMeta(meta);
-        }
-        inv.setItem(53, eraser);
-
         openLater(player, inv);
     }
 
-    private void openGradientsGui(Player player) {
+    public void openGradientsGui(Player player) {
         PlayerBuildState st = playerState.computeIfAbsent(player.getUniqueId(), id -> new PlayerBuildState());
         int page = Math.max(0, Math.min(st.gradientPage, Math.max(0, GRADIENTS.size() - 1)));
-        Inventory inv = Bukkit.createInventory(new BuildGuiHolder(GuiType.GRADIENTS), 54, ChatColor.BLUE + "Градиенты (" + (page + 1) + "/" + Math.max(1, GRADIENTS.size()) + ")");
+        Inventory inv = GradientsGui.render(GRADIENTS, page);
         fillBackground(inv);
-        // fill rows with multiple gradients until pagination row
-        int writeIndex = 0; // 0..44 usable (last row 45..53 reserved for pagination)
-        int g = page;
-        while (writeIndex < 45 && g < GRADIENTS.size()) {
-            List<Material> mats = GRADIENTS.get(g);
-            for (int i = 0; i < Math.min(8, mats.size()) && writeIndex < 45; i++) {
-                inv.setItem(writeIndex++, ItemFactory.named(mats.get(i), ChatColor.AQUA + "Блок " + (i + 1), null));
-            }
-            if (writeIndex < 45) {
-                inv.setItem(writeIndex++, ItemFactory.named(Material.PAPER, ChatColor.GREEN + "Взять на хотбар", List.of(ChatColor.GRAY + "Слоты 1-8")));
-            }
-            g++;
-        }
-        // pagination on last row (centered-ish at 47/51)
-        if (page > 0) inv.setItem(47, ItemFactory.named(Material.PAPER, ChatColor.YELLOW + "Страница назад", null));
-        if (page < GRADIENTS.size()) inv.setItem(51, ItemFactory.named(Material.PAPER, ChatColor.YELLOW + "Страница вперед", null));
-
         openLater(player, inv);
     }
 
     // ---------- Click handlers ----------
     private void handleMainClick(Player player, int slot, InventoryClickEvent event) {
-        if (slot == 10) {
-            // F slot: if clicking with a block on cursor, set as floor
-            ItemStack cursor = event.getCursor();
-            if (cursor != null && cursor.getType().isBlock()) {
-                setFloorTo(player, cursor.getType());
-                openMainGui(player);
-            } else {
-                // Or click on existing block icon to apply it
-                ItemStack current = event.getCurrentItem();
-                if (current != null && current.getType().isBlock()) {
-                    setFloorTo(player, current.getType());
-                    openMainGui(player);
-                }
-            }
-        } else if (slot == 11) {
-            openToolsGui(player);
-        } else if (slot == 12) {
-            openTimeGui(player);
-        } else if (slot == 14) {
-            openWeatherGui(player);
-        } else if (slot == 15) {
-            openParticlesGui(player);
-        } else if (slot == 16) {
-            openGradientsGui(player);
-        }
+        new com.neobuildbattle.core.build.click.MainClickHandler(this).handle(player, slot, event);
     }
 
     private void handleTimeClick(Player player, int slot) {
-        Map<Integer, Integer> map = Map.of(
-                11, 18000, // 0:00
-                12, 21000, // 3:00
-                13, 0,     // 6:00
-                14, 3000,  // 9:00
-                15, 6000,  // 12:00
-                22, 9000,  // 15:00
-                23, 12000, // 18:00
-                24, 15000  // 21:00
-        );
-        Integer ticks = map.get(slot);
-        if (ticks == null) return;
-        Plot plot = plotManager.getPlotByOwner(player.getUniqueId());
-        if (plot == null) return;
-        PlotEnvironmentState env = plotEnv.computeIfAbsent(plot.getOwnerId(), id -> new PlotEnvironmentState());
-        env.timeTicks = ticks;
-        applyEnvForPlot(plot);
-        player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GOLD + "Время обновлено"));
+        new com.neobuildbattle.core.build.click.TimeClickHandler(this).handle(player, slot, null);
     }
 
     private void handleWeatherClick(Player player, int slot) {
-        Plot plot = plotManager.getPlotByOwner(player.getUniqueId());
-        if (plot == null) return;
-        PlotEnvironmentState env = plotEnv.computeIfAbsent(plot.getOwnerId(), id -> new PlotEnvironmentState());
-        if (slot == 11) {
-            env.weather = WeatherType.CLEAR;
-            env.storm = false;
-        } else if (slot == 13) {
-            env.weather = WeatherType.DOWNFALL;
-            env.storm = false;
-        } else if (slot == 15) {
-            env.weather = WeatherType.DOWNFALL;
-            env.storm = true;
-        } else {
-            return;
-        }
-        applyEnvForPlot(plot);
-        player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.AQUA + "Погода обновлена"));
+        new com.neobuildbattle.core.build.click.WeatherClickHandler(this).handle(player, slot, null);
+    }
+
+    public void openBiomesGui(Player player) {
+        var options = BiomeGui.loadOptions(plugin);
+        Inventory inv = BiomeGui.render(options);
+        fillBackground(inv);
+        openLater(player, inv);
+    }
+
+    private void handleBiomesClick(Player player, int slot) {
+        new com.neobuildbattle.core.build.click.BiomeClickHandler(plugin, this).handle(player, slot, null);
     }
 
     private void handleParticlesClick(Player player, int slot) {
-        // Clicking on particle icon should give an infinite tool item (we simply add a copy)
-        ItemStack clicked = player.getOpenInventory().getTopInventory().getItem(slot);
-        if (clicked == null) return;
-        ItemMeta meta = clicked.getItemMeta();
-        if (meta == null) return;
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        if (pdc.has(particleTypeKey, PersistentDataType.STRING) || pdc.has(particleEraserKey, PersistentDataType.INTEGER)) {
-            player.getInventory().addItem(clicked.clone());
-            player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.LIGHT_PURPLE + "Инструмент добавлен"));
-        }
+        new com.neobuildbattle.core.build.click.ParticlesClickHandler(this).handle(player, slot, null);
     }
 
     private void handleGradientsClick(Player player, int slot) {
-        PlayerBuildState st = playerState.computeIfAbsent(player.getUniqueId(), id -> new PlayerBuildState());
-        int page = st.gradientPage;
-        // hotbar grab button is at index 8 of each gradient row block (0..44), i.e. any slot where slot % 9 == 8 and slot < 45
-        if (slot < 45 && slot % 9 == 8) {
-            int gIndex = page + (slot / 9);
-            if (gIndex >= 0 && gIndex < GRADIENTS.size()) {
-                List<Material> mats = GRADIENTS.get(gIndex);
-                for (int i = 0; i < Math.min(8, mats.size()); i++) {
-                    player.getInventory().setItem(i, new ItemStack(mats.get(i)));
-                }
-                player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Выдано на хотбар"));
-                return;
-            }
-        }
-        int prevSlot = 47;
-        int nextSlot = 51;
-        if (slot == prevSlot && page > 0) {
-            st.gradientPage = page - 1;
-            Bukkit.getScheduler().runTask(plugin, () -> openGradientsGui(player));
-        } else if (slot == nextSlot && page < GRADIENTS.size()) {
-            st.gradientPage = page + 1;
-            Bukkit.getScheduler().runTask(plugin, () -> openGradientsGui(player));
-        }
+        new com.neobuildbattle.core.build.click.GradientsClickHandler(this).handle(player, slot, null);
     }
 
     // ---------- Helpers ----------
@@ -479,7 +372,16 @@ public final class BuildToolsManager implements Listener {
         return gm != null && gm.getState() == GameState.BUILDING;
     }
 
-    private void setFloorTo(Player player, Material material) {
+    public void applyFloor(Player player, Material material) {
+        // map water/lava buckets and all water creatures buckets to water/lava floor
+        if (material == Material.WATER_BUCKET || material == Material.LAVA_BUCKET) {
+            material = material == Material.WATER_BUCKET ? Material.WATER : Material.LAVA;
+        }
+        // treat all fish buckets and axolotl/tadpole buckets as WATER
+        String name = material.name();
+        if (name.endsWith("_BUCKET") && (name.contains("SALMON") || name.contains("COD") || name.contains("PUFFERFISH") || name.contains("TROPICAL_FISH") || name.contains("AXOLOTL") || name.contains("TADPOLE"))) {
+            material = Material.WATER;
+        }
         PlayerBuildState st = playerState.computeIfAbsent(player.getUniqueId(), id -> new PlayerBuildState());
         st.floorMaterial = material;
         Plot plot = plotManager.getPlotByOwner(player.getUniqueId());
@@ -491,13 +393,14 @@ public final class BuildToolsManager implements Listener {
         int startZ = plot.getMinZ() + 3;
         // Spread changes across ticks to avoid lag
         final int rowsPerTick = 8;
+        final Material applyMaterial = material;
         for (int zOff = 0; zOff < buildArea; zOff += rowsPerTick) {
             final int zStart = zOff;
             Bukkit.getScheduler().runTask(plugin, () -> {
                 for (int dz = 0; dz < rowsPerTick && zStart + dz < buildArea; dz++) {
                     int z = startZ + zStart + dz;
                     for (int x = startX; x < startX + buildArea; x++) {
-                        world.getBlockAt(x, baseY, z).setType(material, false);
+                        world.getBlockAt(x, baseY, z).setType(applyMaterial, false);
                     }
                 }
             });
@@ -505,7 +408,7 @@ public final class BuildToolsManager implements Listener {
         player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Пол изменен: " + neat(material)));
     }
 
-    private void applyEnvForPlot(Plot plot) {
+    public void applyEnvForPlot(Plot plot) {
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (plot.containsLocation(p.getLocation())) {
                 applyEnvForPlayer(p);
@@ -525,6 +428,7 @@ public final class BuildToolsManager implements Listener {
         if (env != null) {
             if (env.timeTicks != null) player.setPlayerTime(env.timeTicks, false);
             if (env.weather != null) player.setPlayerWeather(env.weather);
+            if (env.biome != null) sendBiomePatch(player, inside, env.biome);
         } else {
             player.resetPlayerTime();
             player.resetPlayerWeather();
@@ -554,6 +458,12 @@ public final class BuildToolsManager implements Listener {
             Plot plot = plotManager.getPlotByOwner(e.getKey());
             if (plot == null) continue;
             PlotEnvironmentState env = e.getValue();
+            if (env.biome != null) {
+                // keep biome visuals updated for players currently on plot
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (plot.containsLocation(p.getLocation())) sendBiomePatch(p, plot, env.biome);
+                }
+            }
             if (env.particleCenters.isEmpty()) continue;
             List<Player> viewers = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {
@@ -658,6 +568,80 @@ public final class BuildToolsManager implements Listener {
         }
     }
 
+    // Expose small helpers for click handlers
+    public NamespacedKey getParticleTypeKey() { return particleTypeKey; }
+    public NamespacedKey getParticleEraserKey() { return particleEraserKey; }
+    public List<List<Material>> getGradients() { return GRADIENTS; }
+    public PlayerBuildState getOrCreateState(Player p) { return playerState.computeIfAbsent(p.getUniqueId(), id -> new PlayerBuildState()); }
+    public void applyTime(Player player, int ticks) {
+        Plot plot = plotManager.getPlotByOwner(player.getUniqueId());
+        if (plot == null) return;
+        PlotEnvironmentState env = plotEnv.computeIfAbsent(plot.getOwnerId(), id -> new PlotEnvironmentState());
+        env.timeTicks = ticks;
+        applyEnvForPlot(plot);
+        player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GOLD + "Время обновлено"));
+    }
+    public void applyWeather(Player player, WeatherType wt, boolean storm) {
+        Plot plot = plotManager.getPlotByOwner(player.getUniqueId());
+        if (plot == null) return;
+        PlotEnvironmentState env = plotEnv.computeIfAbsent(plot.getOwnerId(), id -> new PlotEnvironmentState());
+        env.weather = wt;
+        env.storm = storm;
+        applyEnvForPlot(plot);
+        player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.AQUA + "Погода обновлена"));
+    }
+
+    public void applyBiome(Player player, Biome biome) {
+        Plot plot = plotManager.getPlotByOwner(player.getUniqueId());
+        if (plot == null) return;
+        UUID owner = plot.getOwnerId();
+        PlotEnvironmentState env = plotEnv.computeIfAbsent(owner, id -> new PlotEnvironmentState());
+        env.biome = biome;
+        applyEnvForPlot(plot);
+        player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Биом обновлён"));
+    }
+
+    // Send biome update by setting biomes in the inner build area. Client refreshes visuals as chunks stream.
+    private void sendBiomePatch(Player player, Plot plot, Biome biome) {
+        try {
+            World world = plot.getSpawnLocation().getWorld();
+            if (world == null) return;
+            int innerMinX = plot.getMinX() + 3;
+            int innerMinZ = plot.getMinZ() + 3;
+            int size = NeoBuildBattleCore.getInstance().getConfig().getInt("build-area-size", 65);
+            int baseY = plot.getSpawnLocation().getBlockY();
+            int minY = Math.max(world.getMinHeight(), baseY - 2);
+            int maxY = Math.min(world.getMaxHeight() - 1, baseY + 6);
+            for (int x = 0; x < size; x++) {
+                for (int z = 0; z < size; z++) {
+                    for (int y = minY; y <= maxY; y++) {
+                        world.setBiome(innerMinX + x, y, innerMinZ + z, biome);
+                    }
+                }
+            }
+            // Hint the client to refresh
+            player.sendBlockChange(plot.getSpawnLocation(), world.getBlockAt(plot.getSpawnLocation()).getBlockData());
+        } catch (Throwable ignored) { }
+    }
+
+    private void applyBiomeToPlotInternal(Plot plot, Biome biome) {
+        World world = plot.getSpawnLocation().getWorld();
+        if (world == null) return;
+        int innerMinX = plot.getMinX() + 3;
+        int innerMinZ = plot.getMinZ() + 3;
+        int size = NeoBuildBattleCore.getInstance().getConfig().getInt("build-area-size", 65);
+        int baseY = plot.getSpawnLocation().getBlockY();
+        int minY = Math.max(world.getMinHeight(), baseY - 2);
+        int maxY = Math.min(world.getMaxHeight() - 1, baseY + 6);
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                for (int y = minY; y <= maxY; y++) {
+                    world.setBiome(innerMinX + x, y, innerMinZ + z, biome);
+                }
+            }
+        }
+    }
+
     @EventHandler
     public void onDrop(PlayerDropItemEvent event) {
         ItemStack stack = event.getItemDrop().getItemStack();
@@ -698,9 +682,9 @@ public final class BuildToolsManager implements Listener {
         try { return Particle.valueOf(name); } catch (Throwable t) { return null; }
     }
 
-    private static final class PlayerBuildState {
-        Material floorMaterial;
-        int gradientPage = 0;
+    public static final class PlayerBuildState {
+        public Material floorMaterial;
+        public int gradientPage = 0;
     }
 
     private static final class PlotEnvironmentState {
@@ -708,6 +692,7 @@ public final class BuildToolsManager implements Listener {
         WeatherType weather; // null => default
         boolean storm;
         final List<ParticleCenter> particleCenters = new ArrayList<>();
+        Biome biome;
     }
 
     private static final class ParticleCenter {

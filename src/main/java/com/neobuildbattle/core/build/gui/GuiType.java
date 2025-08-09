@@ -6,7 +6,8 @@ public enum GuiType {
     TIME,
     WEATHER,
     PARTICLES,
-    GRADIENTS
+    GRADIENTS,
+    BIOMES
 }
 
 

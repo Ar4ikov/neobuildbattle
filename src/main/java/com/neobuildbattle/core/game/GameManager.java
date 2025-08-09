@@ -395,6 +395,8 @@ public final class GameManager implements Listener {
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             for (Player p : Bukkit.getOnlinePlayers()) {
+                // Remove voting items before clearing
+                NeoBuildBattleCore.getInstance().getScoreListener().clearVotingItems(p);
                 p.getInventory().clear();
                 p.setGameMode(GameMode.ADVENTURE);
                 p.setAllowFlight(false);

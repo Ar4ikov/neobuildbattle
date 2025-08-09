@@ -1,0 +1,56 @@
+biomes:
+  - biome: PLAINS
+    icon: WHEAT
+    name: "Равнины"
+  - biome: FOREST
+    icon: OAK_SAPLING
+    name: "Лес"
+  - biome: BIRCH_FOREST
+    icon: BIRCH_SAPLING
+    name: "Берёзовый лес"
+  - biome: TAIGA
+    icon: SPRUCE_SAPLING
+    name: "Тайга"
+  - biome: SNOWY_PLAINS
+    icon: SNOWBALL
+    name: "Снежные равнины"
+  - biome: DESERT
+    icon: SAND
+    name: "Пустыня"
+  - biome: SAVANNA
+    icon: ACACIA_SAPLING
+    name: "Саванна"
+  - biome: JUNGLE
+    icon: JUNGLE_SAPLING
+    name: "Джунгли"
+  - biome: SWAMP
+    icon: SLIME_BALL
+    name: "Болото"
+  - biome: MANGROVE_SWAMP
+    icon: MANGROVE_PROPAGULE
+    name: "Мангровое болото"
+  - biome: DRIPSTONE_CAVES
+    icon: POINTED_DRIPSTONE
+    name: "Капающие пещеры"
+  - biome: LUSH_CAVES
+    icon: MOSS_BLOCK
+    name: "Пышные пещеры"
+  - biome: DEEP_DARK
+    icon: SCULK
+    name: "Глубокая тьма"
+  - biome: NETHER_WASTES
+    icon: NETHERRACK
+    name: "Адские пустоши"
+  - biome: CRIMSON_FOREST
+    icon: CRIMSON_FUNGUS
+    name: "Багровый лес"
+  - biome: WARPED_FOREST
+    icon: WARPED_FUNGUS
+    name: "Искажённый лес"
+  - biome: BASALT_DELTAS
+    icon: BASALT
+    name: "Базальтовые дельты"
+  - biome: SOUL_SAND_VALLEY
+    icon: SOUL_SAND
+    name: "Долина душ"
+

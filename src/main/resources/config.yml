@@ -13,7 +13,7 @@ build-seconds: 420
 evaluation-seconds-per-plot: 20
 
 worlds:
-  lobby: 
+  lobby: world
   game: world
 
 lobby-spawn:
