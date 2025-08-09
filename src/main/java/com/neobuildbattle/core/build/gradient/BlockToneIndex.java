@@ -1,0 +1,163 @@
+package com.neobuildbattle.core.build.gradient;
+
+import com.neobuildbattle.core.NeoBuildBattleCore;
+import org.bukkit.Material;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.util.*;
+
+/**
+ * Builds and caches a tone/color index for full blocks. Stored as block_tones.yml in data folder.
+ * If file is missing or corrupt, regenerates.
+ */
+public final class BlockToneIndex {
+    public static final class Tone {
+        public final double hue;      // 0..1
+        public final double sat;      // 0..1
+        public final double lum;      // 0..1
+        public Tone(double h, double s, double l) { this.hue = h; this.sat = s; this.lum = l; }
+    }
+
+    private final Map<Material, Tone> tones = new EnumMap<>(Material.class);
+    private final Set<Material> fullBlocks = EnumSet.noneOf(Material.class);
+
+    public BlockToneIndex() {}
+
+    public void loadOrBuild(NeoBuildBattleCore plugin) {
+        try {
+            File file = new File(plugin.getDataFolder(), "block_tones.yml");
+            if (file.exists()) {
+                YamlConfiguration y = YamlConfiguration.loadConfiguration(file);
+                for (String key : y.getKeys(false)) {
+                    Material m = Material.matchMaterial(key);
+                    if (m == null) continue;
+                    double h = y.getDouble(key + ".h", -1);
+                    double s = y.getDouble(key + ".s", -1);
+                    double l = y.getDouble(key + ".l", -1);
+                    boolean full = y.getBoolean(key + ".full", false);
+                    if (h >= 0 && s >= 0 && l >= 0) tones.put(m, new Tone(h, s, l));
+                    if (full) fullBlocks.add(m);
+                }
+                if (!tones.isEmpty()) return; // ok
+            }
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Tone index corrupted: " + t.getMessage());
+        }
+        build(plugin);
+    }
+
+    private void build(NeoBuildBattleCore plugin) {
+        tones.clear();
+        fullBlocks.clear();
+        // Determine full blocks
+        for (Material m : Material.values()) {
+            if (!m.isBlock()) continue;
+            String n = m.name();
+            if (n.endsWith("_SLAB") || n.endsWith("_STAIRS") || n.contains("WALL") || n.contains("FENCE") || n.contains("PANE") || n.contains("DOOR") || n.contains("TRAPDOOR") || n.contains("BED") || n.contains("SIGN") || n.contains("TORCH") || n.contains("LANTERN")) continue;
+            if (n.contains("BANNER") || n.contains("PRESSURE_PLATE") || n.contains("BUTTON") || n.contains("CARPET")) continue;
+            fullBlocks.add(m);
+        }
+        // Try to read textures from dataFolder/resourcepack/assets/minecraft/textures/block/<name>.png
+        File rp = new File(plugin.getDataFolder(), "resourcepack/assets/minecraft/textures/block");
+        for (Material m : fullBlocks) {
+            Tone t = null;
+            try {
+                String path = m.name().toLowerCase(Locale.ROOT);
+                File imgFile = new File(rp, path + ".png");
+                if (!imgFile.exists()) {
+                    // common alternates
+                    if (path.endsWith("_block")) imgFile = new File(rp, path.substring(0, path.length() - 6) + ".png");
+                }
+                if (imgFile.exists()) {
+                    BufferedImage img = ImageIO.read(imgFile);
+                    t = computeTone(img);
+                }
+            } catch (Throwable ignored) {}
+            if (t == null) t = heuristicTone(m);
+            tones.put(m, t);
+        }
+        // Save
+        try {
+            File file = new File(plugin.getDataFolder(), "block_tones.yml");
+            YamlConfiguration y = new YamlConfiguration();
+            for (Material m : tones.keySet()) {
+                Tone t = tones.get(m);
+                y.set(m.name() + ".h", t.hue);
+                y.set(m.name() + ".s", t.sat);
+                y.set(m.name() + ".l", t.lum);
+                y.set(m.name() + ".full", fullBlocks.contains(m));
+            }
+            y.save(file);
+        } catch (Throwable t) {
+            plugin.getLogger().warning("Failed to save block_tones.yml: " + t.getMessage());
+        }
+    }
+
+    private Tone computeTone(BufferedImage img) {
+        long rSum = 0, gSum = 0, bSum = 0; int c = 0;
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                int argb = img.getRGB(x, y);
+                int a = (argb >> 24) & 0xFF; if (a < 16) continue;
+                int r = (argb >> 16) & 0xFF, g = (argb >> 8) & 0xFF, b = argb & 0xFF;
+                rSum += r; gSum += g; bSum += b; c++;
+            }
+        }
+        if (c == 0) return new Tone(0.0, 0.0, 0.5);
+        double r = rSum / (double) c / 255.0;
+        double g = gSum / (double) c / 255.0;
+        double b = bSum / (double) c / 255.0;
+        return rgbToHsl(r, g, b);
+    }
+
+    private Tone heuristicTone(Material m) {
+        String n = m.name();
+        if (n.contains("BLACK") || n.contains("DEEP") || n.contains("DARK")) return new Tone(0.0, 0.0, 0.12);
+        if (n.contains("WHITE") || n.contains("LIGHT") || n.contains("QUARTZ")) return new Tone(0.0, 0.0, 0.9);
+        if (n.contains("RED")) return new Tone(0.02, 0.7, 0.4);
+        if (n.contains("BLUE")) return new Tone(0.6, 0.6, 0.35);
+        if (n.contains("GREEN")) return new Tone(0.33, 0.6, 0.4);
+        if (n.contains("BROWN") || n.contains("GRANITE")) return new Tone(0.05, 0.6, 0.35);
+        if (n.contains("GRAY") || n.contains("STONE") || n.contains("COBBLE")) return new Tone(0.0, 0.0, 0.5);
+        return new Tone(0.0, 0.0, 0.6);
+    }
+
+    private Tone rgbToHsl(double r, double g, double b) {
+        double max = Math.max(r, Math.max(g, b));
+        double min = Math.min(r, Math.min(g, b));
+        double h, s, l = (max + min) / 2.0;
+        if (max == min) { h = s = 0.0; }
+        else {
+            double d = max - min;
+            s = l > 0.5 ? d / (2.0 - max - min) : d / (max + min);
+            if (max == r) h = (g - b) / d + (g < b ? 6.0 : 0.0);
+            else if (max == g) h = (b - r) / d + 2.0; else h = (r - g) / d + 4.0;
+            h /= 6.0;
+        }
+        return new Tone(h, s, l);
+    }
+
+    public List<Material> nearest(Material base, int k) {
+        Tone tb = tones.get(base);
+        if (tb == null) return List.of(base);
+        List<Material> cands = new ArrayList<>(fullBlocks);
+        cands.remove(base);
+        cands.sort(Comparator.comparingDouble(m -> dist(tb, tones.get(m))));
+        List<Material> out = new ArrayList<>();
+        for (int i = 0; i < Math.min(k, cands.size()); i++) out.add(cands.get(i));
+        return out;
+    }
+
+    private double dist(Tone a, Tone b) {
+        if (b == null) return 1e9;
+        double dh = Math.min(Math.abs(a.hue - b.hue), 1.0 - Math.abs(a.hue - b.hue));
+        double ds = Math.abs(a.sat - b.sat);
+        double dl = Math.abs(a.lum - b.lum);
+        return dh * 2.0 + ds * 0.5 + dl * 1.0;
+    }
+}
+
+

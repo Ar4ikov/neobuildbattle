@@ -223,7 +223,7 @@ public final class BuildToolsManager implements Listener {
             }
             int topSize = event.getView().getTopInventory().getSize();
             int raw = event.getRawSlot();
-            boolean inTop = raw < topSize;
+            boolean inTop = raw >= 0 && raw < topSize;
             if (inTop) {
                 event.setCancelled(true);
                 // Click sound for GUI interactions
@@ -239,6 +239,10 @@ public final class BuildToolsManager implements Listener {
                     handleParticlesClick(player, raw);
                 } else if (type == GuiType.GRADIENTS) {
                     handleGradientsClick(player, raw);
+                } else if (type == GuiType.TOOLS) {
+                    handleAdvancedToolsClick(player, raw);
+                } else if (type == GuiType.PATTERN) {
+                    handlePatternClick(player, raw, event);
                 } else if (type == GuiType.BIOMES) {
                     handleBiomesClick(player, raw);
                 }
@@ -384,6 +388,14 @@ public final class BuildToolsManager implements Listener {
         new com.neobuildbattle.core.build.click.GradientsClickHandler(this).handle(player, slot, null);
     }
 
+    private void handleAdvancedToolsClick(Player player, int slot) {
+        new com.neobuildbattle.core.build.click.AdvancedToolsClickHandler().handle(player, slot, null);
+    }
+
+    private void handlePatternClick(Player player, int slot, InventoryClickEvent event) {
+        new com.neobuildbattle.core.build.click.PatternClickHandler().handle(player, slot, event);
+    }
+
     // ---------- Helpers ----------
     private boolean ensureIsBuilding(Player player) {
         GameManager gm = plugin.getGameManager();
@@ -422,7 +434,14 @@ public final class BuildToolsManager implements Listener {
                 for (int dz = 0; dz < rowsPerTick && zStart + dz < buildArea; dz++) {
                     int z = startZ + zStart + dz;
                     for (int x = startX; x < startX + buildArea; x++) {
-                        world.getBlockAt(x, baseY, z).setType(applyMaterial, false);
+                        // Guard special-case blocks with dangerous side-effects (e.g., calibrated sculk sensor/shrieker)
+                        try {
+                            world.getBlockAt(x, baseY, z).setType(applyMaterial, false);
+                        } catch (IllegalArgumentException ex) {
+                            try {
+                                world.getBlockAt(x, baseY, z).setType(org.bukkit.Material.STONE, false);
+                            } catch (Throwable ignored) {}
+                        }
                     }
                 }
             });

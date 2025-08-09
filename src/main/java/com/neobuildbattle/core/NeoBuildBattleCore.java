@@ -28,6 +28,12 @@ public final class NeoBuildBattleCore extends JavaPlugin {
     private SpectatorManager spectatorManager;
     private Messages messages;
     private BuildToolsManager buildToolsManager;
+    private com.neobuildbattle.core.build.selection.SelectionService selectionService;
+    private com.neobuildbattle.core.build.clipboard.ClipboardService clipboardService;
+    private com.neobuildbattle.core.build.tools.AdvancedToolsManager advancedToolsManager;
+    private com.neobuildbattle.core.build.gradient.GradientToolManager gradientToolManager;
+    private com.neobuildbattle.core.build.gradient.BlockToneIndex blockToneIndex;
+    private com.neobuildbattle.core.build.pattern.PatternGui patternGui;
 
     public static NeoBuildBattleCore getInstance() {
         return instance;
@@ -53,6 +59,13 @@ public final class NeoBuildBattleCore extends JavaPlugin {
         this.spectatorManager = new SpectatorManager(this);
         this.messages = new Messages(this);
         this.buildToolsManager = new BuildToolsManager(this);
+        this.selectionService = new com.neobuildbattle.core.build.selection.SelectionService(this);
+        this.clipboardService = new com.neobuildbattle.core.build.clipboard.ClipboardService(this);
+        this.advancedToolsManager = new com.neobuildbattle.core.build.tools.AdvancedToolsManager(this, selectionService, clipboardService);
+        this.blockToneIndex = new com.neobuildbattle.core.build.gradient.BlockToneIndex();
+        this.blockToneIndex.loadOrBuild(this);
+        this.gradientToolManager = new com.neobuildbattle.core.build.gradient.GradientToolManager(this);
+        this.patternGui = new com.neobuildbattle.core.build.pattern.PatternGui();
 
         Bukkit.getPluginManager().registerEvents(gameManager, this);
         Bukkit.getPluginManager().registerEvents(themeVotingManager, this);
@@ -62,6 +75,9 @@ public final class NeoBuildBattleCore extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(new com.neobuildbattle.core.protect.ProtectionListener(this), this);
         Bukkit.getPluginManager().registerEvents(new com.neobuildbattle.core.world.WorldLifecycleListener(this), this);
         Bukkit.getPluginManager().registerEvents(buildToolsManager, this);
+        Bukkit.getPluginManager().registerEvents(selectionService, this);
+        Bukkit.getPluginManager().registerEvents(advancedToolsManager, this);
+        Bukkit.getPluginManager().registerEvents(gradientToolManager, this);
 
         // Commands
         getCommand("neobb").setExecutor(new AdminCommands(this));
@@ -120,6 +136,13 @@ public final class NeoBuildBattleCore extends JavaPlugin {
     public BuildToolsManager getBuildToolsManager() {
         return buildToolsManager;
     }
+
+    public com.neobuildbattle.core.build.selection.SelectionService getSelectionService() { return selectionService; }
+    public com.neobuildbattle.core.build.clipboard.ClipboardService getClipboardService() { return clipboardService; }
+    public com.neobuildbattle.core.build.tools.AdvancedToolsManager getAdvancedToolsManager() { return advancedToolsManager; }
+    public com.neobuildbattle.core.build.gradient.GradientToolManager getGradientToolManager() { return gradientToolManager; }
+    public com.neobuildbattle.core.build.gradient.BlockToneIndex getBlockToneIndex() { return blockToneIndex; }
+    public com.neobuildbattle.core.build.pattern.PatternGui getPatternGui() { return patternGui; }
 
     @Override
     public void saveDefaultConfig() {

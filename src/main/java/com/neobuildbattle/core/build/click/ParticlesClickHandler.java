@@ -13,6 +13,8 @@ public final class ParticlesClickHandler implements GuiClickHandler {
 
     @Override
     public void handle(Player player, int rawSlot, InventoryClickEvent event) {
+        int topSize = player.getOpenInventory().getTopInventory().getSize();
+        if (rawSlot < 0 || rawSlot >= topSize) return;
         ItemStack clicked = player.getOpenInventory().getTopInventory().getItem(rawSlot);
         if (clicked == null) return;
         ItemMeta meta = clicked.getItemMeta();

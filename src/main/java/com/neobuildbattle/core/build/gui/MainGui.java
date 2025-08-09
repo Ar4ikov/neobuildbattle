@@ -22,7 +22,7 @@ public final class MainGui {
         Material defaultFloor = Optional.ofNullable(Material.matchMaterial(NeoBuildBattleCore.getInstance().getConfig().getString("plot-floor-material", "WHITE_CONCRETE")))
                 .orElse(Material.WHITE_CONCRETE);
         inv.setItem(10, ItemFactory.named(defaultFloor, ChatColor.GREEN + "Смена пола", List.of(ChatColor.GRAY + "Клик — применить, перетащите блок — заменить")));
-        inv.setItem(11, ItemFactory.named(Material.IRON_PICKAXE, ChatColor.YELLOW + "Инструменты", List.of(ChatColor.GRAY + "Открыть")));
+        inv.setItem(11, ItemFactory.named(Material.IRON_AXE, ChatColor.YELLOW + "Продвинутые инструменты", List.of(ChatColor.GRAY + "Открыть")));
         inv.setItem(12, ItemFactory.named(Material.CLOCK, ChatColor.GOLD + "Время суток", List.of(ChatColor.GRAY + "Выбрать")));
         inv.setItem(13, ItemFactory.named(Material.OAK_SAPLING, ChatColor.GREEN + "Биомы", List.of(ChatColor.GRAY + "Выбрать")));
         inv.setItem(14, ItemFactory.named(Material.WATER_BUCKET, ChatColor.AQUA + "Погода", List.of(ChatColor.GRAY + "Выбрать")));
