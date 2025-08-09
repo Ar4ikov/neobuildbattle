@@ -68,6 +68,10 @@ public final class GameManager implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         playerRegistry.remove(e.getPlayer().getUniqueId());
+        // If someone leaves during countdown and we no longer meet requirements, cancel countdown
+        if (state == GameState.COUNTDOWN && !hasEnoughPlayers()) {
+            cancelCountdown(true);
+        }
     }
 
     @EventHandler
@@ -133,9 +137,7 @@ public final class GameManager implements Listener {
 
     public void tryStartCountdown() {
         if (state != GameState.WAITING) return;
-        int max = plugin.getConfig().getInt("max-players", 16);
-        int threshold = (int) Math.ceil(max * 0.5);
-        if (Bukkit.getOnlinePlayers().size() >= threshold) {
+        if (hasEnoughPlayers()) {
             startCountdown();
             plugin.getMessages().broadcast("countdown_start", plugin.getMessages().map(
                     "seconds", plugin.getConfig().getInt("countdown-seconds", 20)
@@ -149,14 +151,44 @@ public final class GameManager implements Listener {
         int seconds = plugin.getConfig().getInt("countdown-seconds", 20);
         AtomicInteger time = new AtomicInteger(seconds);
         countdownTask = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            // Abort if players dropped below minimum during countdown
+            if (!hasEnoughPlayers()) {
+                cancelCountdown(true);
+                return;
+            }
             int t = time.getAndDecrement();
             if (t <= 0) {
                 Bukkit.getScheduler().cancelTask(countdownTask);
-                runThemeVoting();
+                countdownTask = -1;
+                // Final sanity check before starting
+                if (hasEnoughPlayers()) {
+                    runThemeVoting();
+                } else {
+                    cancelCountdown(true);
+                }
             } else {
                 plugin.getMessages().broadcast("countdown_tick", plugin.getMessages().map("seconds", t));
             }
         }, 0L, 20L);
+    }
+
+    private boolean hasEnoughPlayers() {
+        int active = playerRegistry.getActivePlayers().size();
+        int max = plugin.getConfig().getInt("max-players", 16);
+        int configuredMin = plugin.getConfig().getInt("min-players", -1);
+        int threshold = configuredMin > 0 ? configuredMin : (int) Math.ceil(max * 0.5);
+        return active >= threshold;
+    }
+
+    private void cancelCountdown(boolean announce) {
+        if (countdownTask != -1) {
+            Bukkit.getScheduler().cancelTask(countdownTask);
+            countdownTask = -1;
+        }
+        state = GameState.WAITING;
+        if (announce) {
+            plugin.getMessages().broadcast("countdown_cancelled", null);
+        }
     }
 
     private void runThemeVoting() {
@@ -183,7 +215,13 @@ public final class GameManager implements Listener {
         if (state != GameState.THEME_VOTING) return;
         state = GameState.BUILDING;
 
-        List<Player> participants = new ArrayList<>(Bukkit.getOnlinePlayers());
+        // Use only registered participants (those who were in WAITING/COUNTDOWN), exclude spectators who joined mid-game
+        List<Player> participants = new ArrayList<>();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (playerRegistry.getActivePlayers().contains(p.getUniqueId())) {
+                participants.add(p);
+            }
+        }
         plotManager.allocatePlots(participants);
         for (Player p : participants) {
             Plot plot = plotManager.getPlotByOwner(p.getUniqueId());
@@ -192,6 +230,8 @@ public final class GameManager implements Listener {
                 p.setGameMode(GameMode.CREATIVE);
                 p.setAllowFlight(true);
                 p.teleport(plot.getSpawnLocation());
+                // Give build tools item
+                NeoBuildBattleCore.getInstance().getBuildToolsManager().giveBuildTool(p);
             }
         }
 
@@ -209,6 +249,11 @@ public final class GameManager implements Listener {
         votingScoreboard.clear();
 
         List<UUID> owners = new ArrayList<>(plotManager.getAllOwners());
+        // Ensure all registered participants that have plots are included
+        for (UUID id : playerRegistry.getActivePlayers()) {
+            Plot p = plotManager.getPlotByOwner(id);
+            if (p != null && !owners.contains(id)) owners.add(id);
+        }
         Collections.shuffle(owners);
         new EvaluationRunner(owners).run();
     }
@@ -356,6 +401,8 @@ public final class GameManager implements Listener {
                 p.getActivePotionEffects().forEach(pe -> p.removePotionEffect(pe.getType()));
                 lobbyManager.sendToLobby(p);
             }
+            // Reset all build-tools related state and overrides
+            NeoBuildBattleCore.getInstance().getBuildToolsManager().resetAll();
             // Reveal all hidden players and reset spectator tracking
             NeoBuildBattleCore.getInstance().getSpectatorManager().showAll();
             plotManager.resetArenaAsync();

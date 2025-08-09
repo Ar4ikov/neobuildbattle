@@ -23,6 +23,11 @@ public final class PlayerRegistry {
      public boolean isActive(UUID id) {
          return activePlayers.contains(id);
      }
+
+     public void setAll(java.util.Collection<UUID> ids) {
+         activePlayers.clear();
+         activePlayers.addAll(ids);
+     }
 }
 
 

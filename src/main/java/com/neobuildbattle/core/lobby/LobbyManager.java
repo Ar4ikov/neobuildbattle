@@ -7,7 +7,6 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import com.neobuildbattle.core.plot.PlotManager;
 
 public final class LobbyManager {
     private final NeoBuildBattleCore plugin;
@@ -21,6 +20,8 @@ public final class LobbyManager {
         player.setGameMode(GameMode.ADVENTURE);
         player.setAllowFlight(false);
         player.setFlying(false);
+        // Ensure all effects (incl. invisibility from spectator) are cleared on lobby return
+        player.getActivePotionEffects().forEach(pe -> player.removePotionEffect(pe.getType()));
         Location spawn = getLobbySpawn();
         if (spawn != null) {
             player.teleport(spawn);

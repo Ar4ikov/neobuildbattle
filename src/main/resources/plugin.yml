@@ -7,6 +7,9 @@ description: Core plugin for Neo Build Battle mode
 load: STARTUP
 loadbefore:
   - Multiverse-Core
+worlds:
+  # Allows referencing this plugin as a generator in bukkit.yml: generator: NeoBuildBattleCore
+  # This block is informational; actual mapping is in server bukkit.yml
 softdepend:
   - BlockProtect
 commands:

@@ -164,3 +164,37 @@ Rethinking of original MC Build Battle gamemode. Современный, про�
 Идея вдохновлена оригинальным Build Battle, но реализована с нуля с акцентом на производительность, читабельность кода и качество UX.
 
 
+## Bundling VoidGen (optional)
+If you want to ship an external void generator (e.g. VoidWorldGenerator) alongside the server:
+
+1) Add its dependency under `bundledPlugins` in `build.gradle` (example coordinates shown; adjust to the artifact you added):
+
+```
+configurations {
+  bundledPlugins
+}
+
+dependencies {
+  // bundledPlugins 'fr.formiko:VoidWorldGenerator:1.3.7'
+}
+```
+
+2) Copy it to the server via:
+
+```
+./gradlew prepareServerPlugins
+```
+
+3) Map worlds to the generator in `server/bukkit.yml`:
+
+```
+worlds:
+  lobby:
+    generator: NeoBuildBattleCore
+  arena:
+    generator: NeoBuildBattleCore
+```
+
+Replace `NeoBuildBattleCore` with the external generator name if you prefer to use it instead.
+
+

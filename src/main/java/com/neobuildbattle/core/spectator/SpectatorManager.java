@@ -19,8 +19,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 
 import java.util.UUID;
 
@@ -42,8 +40,8 @@ public final class SpectatorManager implements Listener {
         player.setAllowFlight(true);
         player.setFlying(true);
         player.getInventory().clear();
-        // Infinite invisibility without particles
-        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, true, false, false));
+        // Do NOT use invisibility to avoid model packets; rely solely on per-recipient hide/show
+        player.getActivePotionEffects().forEach(pe -> player.removePotionEffect(pe.getType()));
         giveCompass(player);
         currentSpectators.add(player.getUniqueId());
         // Hide spectator from everyone and hide other spectators from him
