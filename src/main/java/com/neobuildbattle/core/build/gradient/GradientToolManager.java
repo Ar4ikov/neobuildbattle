@@ -117,10 +117,9 @@ public final class GradientToolManager implements Listener {
         try {
             var idx = plugin.getBlockToneIndex();
             if (idx != null) {
-                List<Material> nn = new ArrayList<>();
-                nn.add(base);
-                nn.addAll(idx.nearest(base, 7));
-                return nn;
+                // Родственная гамма по оттенку: +- 0.06 по тону (в HSL), порядка 8 материалов
+                List<Material> band = idx.hueBand(base, 8, 0.06);
+                return band;
             }
         } catch (Throwable ignored) {}
         // If known band exists, prefer it

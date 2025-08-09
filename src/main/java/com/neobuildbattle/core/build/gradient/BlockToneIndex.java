@@ -55,30 +55,53 @@ public final class BlockToneIndex {
         // Determine full blocks
         for (Material m : Material.values()) {
             if (!m.isBlock()) continue;
+            if (m.isAir()) continue;
+            if (!m.isSolid()) continue;
             String n = m.name();
-            if (n.endsWith("_SLAB") || n.endsWith("_STAIRS") || n.contains("WALL") || n.contains("FENCE") || n.contains("PANE") || n.contains("DOOR") || n.contains("TRAPDOOR") || n.contains("BED") || n.contains("SIGN") || n.contains("TORCH") || n.contains("LANTERN")) continue;
-            if (n.contains("BANNER") || n.contains("PRESSURE_PLATE") || n.contains("BUTTON") || n.contains("CARPET")) continue;
+            if (n.equals("LIGHT") || n.equals("STRUCTURE_BLOCK") || n.equals("JIGSAW") || n.equals("BARRIER") || n.equals("STRUCTURE_VOID") || n.equals("COMMAND_BLOCK")) continue;
+            if (n.endsWith("_SLAB") || n.endsWith("_STAIRS") || n.contains("WALL") || n.contains("FENCE") || n.contains("PANE") || n.contains("DOOR") || n.contains("TRAPDOOR") || n.contains("BED") || n.contains("SIGN") || n.contains("TORCH") || n.contains("LANTERN") || n.contains("SCULK_SHRIEKER") || n.contains("SCULK_SENSOR")) continue;
+            if (n.contains("BANNER") || n.contains("PRESSURE_PLATE") || n.contains("BUTTON") || n.contains("CARPET") || n.contains("HEAD") || n.contains("SKULL")) continue;
+            // exclude redstone components except full blocks (lamp, block)
+            if (n.startsWith("REDSTONE_") && !n.equals("REDSTONE_BLOCK") && !n.equals("REDSTONE_LAMP")) continue;
+            if (n.contains("REPEATER") || n.contains("COMPARATOR") || n.equals("LEVER") || n.contains("TRIPWIRE")) continue;
             fullBlocks.add(m);
         }
-        // Try to read textures from dataFolder/resourcepack/assets/minecraft/textures/block/<name>.png
+        // Try to read textures from dataFolder/resourcepack or classpath/remote fallback
         File rp = new File(plugin.getDataFolder(), "resourcepack/assets/minecraft/textures/block");
+        int found = 0, fetched = 0, heur = 0;
         for (Material m : fullBlocks) {
             Tone t = null;
+            String base = m.name().toLowerCase(Locale.ROOT);
             try {
-                String path = m.name().toLowerCase(Locale.ROOT);
-                File imgFile = new File(rp, path + ".png");
-                if (!imgFile.exists()) {
-                    // common alternates
-                    if (path.endsWith("_block")) imgFile = new File(rp, path.substring(0, path.length() - 6) + ".png");
+                // Local resourcepack
+                File imgFile = new File(rp, base + ".png");
+                if (!imgFile.exists() && base.endsWith("_block")) {
+                    imgFile = new File(rp, base.substring(0, base.length() - 6) + ".png");
                 }
                 if (imgFile.exists()) {
                     BufferedImage img = ImageIO.read(imgFile);
-                    t = computeTone(img);
+                    if (img != null) { t = computeTone(img); found++; }
+                }
+                // Classpath (if plugin bundles any)
+                if (t == null) {
+                    try (var in = NeoBuildBattleCore.getInstance().getResource("assets/minecraft/textures/block/" + base + ".png")) {
+                        if (in != null) {
+                            BufferedImage img = ImageIO.read(in);
+                            if (img != null) { t = computeTone(img); found++; }
+                        }
+                    } catch (Throwable ignored2) {}
+                }
+                // Remote fallback (vanilla repository mirror)
+                if (t == null) {
+                    BufferedImage img = tryFetchVanillaTexture(base);
+                    if (img == null && base.endsWith("_block")) img = tryFetchVanillaTexture(base.substring(0, base.length() - 6));
+                    if (img != null) { t = computeTone(img); fetched++; }
                 }
             } catch (Throwable ignored) {}
-            if (t == null) t = heuristicTone(m);
+            if (t == null) { t = heuristicTone(m); heur++; }
             tones.put(m, t);
         }
+        plugin.getLogger().info("BlockToneIndex: textures processed: local=" + found + ", remote=" + fetched + ", heuristic=" + heur + ", total=" + tones.size());
         // Save
         try {
             File file = new File(plugin.getDataFolder(), "block_tones.yml");
@@ -140,6 +163,20 @@ public final class BlockToneIndex {
         return new Tone(h, s, l);
     }
 
+    private BufferedImage tryFetchVanillaTexture(String name) {
+        try {
+            // Static GitHub mirror of Minecraft assets for convenience; version can be adjusted if needed
+            String url = "https://raw.githubusercontent.com/InventivetalentDev/minecraft-assets/1.21.4/assets/minecraft/textures/block/" + name + ".png";
+            java.net.URL u = new java.net.URL(url);
+            java.net.URLConnection c = u.openConnection();
+            c.setConnectTimeout(2500); c.setReadTimeout(2500);
+            try (var in = c.getInputStream()) {
+                return ImageIO.read(in);
+            }
+        } catch (Throwable ignored) { }
+        return null;
+    }
+
     public List<Material> nearest(Material base, int k) {
         Tone tb = tones.get(base);
         if (tb == null) return List.of(base);
@@ -148,6 +185,36 @@ public final class BlockToneIndex {
         cands.sort(Comparator.comparingDouble(m -> dist(tb, tones.get(m))));
         List<Material> out = new ArrayList<>();
         for (int i = 0; i < Math.min(k, cands.size()); i++) out.add(cands.get(i));
+        return out;
+    }
+
+    // Return up to maxCount materials from same hue family (within hueTol), sorted by luminance and centered around base luminance
+    public List<Material> hueBand(Material base, int maxCount, double hueTol) {
+        Tone tb = tones.get(base);
+        if (tb == null) return List.of(base);
+        List<Material> band = new ArrayList<>();
+        for (Material m : fullBlocks) {
+            Tone t = tones.get(m);
+            if (t == null) continue;
+            double dh = Math.min(Math.abs(tb.hue - t.hue), 1.0 - Math.abs(tb.hue - t.hue));
+            if (dh <= hueTol) band.add(m);
+        }
+        if (!band.contains(base)) band.add(base);
+        band.sort(Comparator.comparingDouble(m -> tones.get(m).lum));
+        // choose around base luminance
+        int idx = 0; double best = 1e9;
+        for (int i = 0; i < band.size(); i++) {
+            double dl = Math.abs(tones.get(band.get(i)).lum - tb.lum);
+            if (dl < best) { best = dl; idx = i; }
+        }
+        List<Material> out = new ArrayList<>();
+        out.add(band.get(idx));
+        int left = idx - 1, right = idx + 1;
+        while (out.size() < Math.min(maxCount, band.size()) && (left >= 0 || right < band.size())) {
+            if (right < band.size()) out.add(band.get(right++));
+            if (out.size() >= maxCount) break;
+            if (left >= 0) out.add(band.get(left--));
+        }
         return out;
     }
 
