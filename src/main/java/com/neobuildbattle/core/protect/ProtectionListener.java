@@ -2,7 +2,6 @@ package com.neobuildbattle.core.protect;
 
 import com.neobuildbattle.core.NeoBuildBattleCore;
 import com.neobuildbattle.core.game.GameState;
-import org.bukkit.GameMode;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Projectile;
@@ -10,18 +9,25 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.ItemSpawnEvent;
+import org.bukkit.event.entity.EntityChangeBlockEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.block.SignChangeEvent;
-import org.bukkit.event.inventory.InventoryOpenEvent;
+// removed unused imports
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.block.BlockPhysicsEvent;
 import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.Material;
-import org.bukkit.block.data.Levelled;
+// removed unused imports
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
+import org.bukkit.event.block.BlockExplodeEvent;
+import org.bukkit.event.entity.ExplosionPrimeEvent;
+import org.bukkit.event.entity.EntityDropItemEvent;
+import org.bukkit.event.block.BlockDropItemEvent;
+import org.bukkit.event.block.BlockIgniteEvent;
+import org.bukkit.event.block.BlockBurnEvent;
 
 public final class ProtectionListener implements Listener {
     private final NeoBuildBattleCore plugin;
@@ -52,17 +58,12 @@ public final class ProtectionListener implements Listener {
     }
 
     @EventHandler
-    public void onDrop(PlayerDropItemEvent e) {
-        if (inVotingOrSpectator(e.getPlayer())) {
-            e.setCancelled(true);
-        }
-    }
+    public void onDrop(PlayerDropItemEvent e) { e.setCancelled(true); }
 
     @EventHandler
     public void onPickup(EntityPickupItemEvent e) {
-        if (e.getEntity() instanceof Player p && inVotingOrSpectator(p)) {
-            e.setCancelled(true);
-        }
+        // Disable pickup to avoid item clutter and scoring exploits
+        e.setCancelled(true);
     }
 
     @EventHandler
@@ -92,7 +93,7 @@ public final class ProtectionListener implements Listener {
     @EventHandler
     public void onPhysics(BlockPhysicsEvent e) {
         Material m = e.getBlock().getType();
-        if (m == Material.SAND || m == Material.GRAVEL || m == Material.RED_SAND || m == Material.ANVIL || m == Material.DRAGON_EGG || m.name().equals("CONCRETE_POWDER") || m == Material.SCAFFOLDING || m == Material.SUSPICIOUS_GRAVEL || m == Material.SUSPICIOUS_SAND || m == Material.CALIBRATED_SCULK_SENSOR) {
+        if (m == Material.SAND || m == Material.GRAVEL || m == Material.RED_SAND || m == Material.ANVIL || m == Material.DRAGON_EGG || m == Material.SCAFFOLDING || m == Material.SUSPICIOUS_GRAVEL || m == Material.SUSPICIOUS_SAND || m.name().endsWith("_CONCRETE_POWDER")) {
             e.setCancelled(true);
         }
     }
@@ -120,6 +121,49 @@ public final class ProtectionListener implements Listener {
     public void onEntityExplode(EntityExplodeEvent e) {
         e.blockList().clear();
     }
+
+    // Prevent block explosions (e.g., TNT placed as block)
+    @EventHandler
+    public void onBlockExplode(BlockExplodeEvent e) {
+        e.blockList().clear();
+        e.setYield(0f);
+    }
+
+    // Disarm TNT and other primed explosives entirely
+    @EventHandler
+    public void onExplosionPrime(ExplosionPrimeEvent e) {
+        e.setCancelled(true);
+    }
+
+    // Prevent any entity from modifying blocks (ender men, wither, ravager, falling blocks placing, etc.)
+    @EventHandler
+    public void onEntityChangeBlock(EntityChangeBlockEvent e) {
+        e.setCancelled(true);
+    }
+
+    // Delete any item entities spawned in the world (block drops, deaths, etc.)
+    @EventHandler
+    public void onItemSpawn(ItemSpawnEvent e) {
+        e.setCancelled(true);
+    }
+
+    // Also catch non-player item drops (armor stands, mobs, etc.)
+    @EventHandler
+    public void onEntityDropItem(EntityDropItemEvent e) { e.setCancelled(true); }
+
+    // Prevent block break drops turning into item entities
+    @EventHandler
+    public void onBlockDrop(BlockDropItemEvent e) {
+        e.getItems().forEach(item -> item.remove());
+        e.setCancelled(true);
+    }
+
+    // Stop fire spread/ignition/burn to protect builds
+    @EventHandler
+    public void onIgnite(BlockIgniteEvent e) { e.setCancelled(true); }
+
+    @EventHandler
+    public void onBurn(BlockBurnEvent e) { e.setCancelled(true); }
 }
 
 

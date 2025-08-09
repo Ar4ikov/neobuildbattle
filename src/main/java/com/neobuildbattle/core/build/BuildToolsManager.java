@@ -21,6 +21,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.*;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -190,14 +191,21 @@ public final class BuildToolsManager implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         // Apply env overrides when entering/leaving plots
         Player player = event.getPlayer();
-        if (!ensureIsBuilding(player)) return;
         applyEnvForPlayer(player);
+    }
+
+    @EventHandler
+    public void onPlayerTeleport(PlayerTeleportEvent event) {
+        // Keep environment in sync after teleports across plots/phases
+        applyEnvForPlayer(event.getPlayer());
     }
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         // In case of mid-game join as spectator, ignore; otherwise state bootstrap
         playerState.computeIfAbsent(event.getPlayer().getUniqueId(), id -> new PlayerBuildState());
+        // Apply current env if they join onto a plot
+        applyEnvForPlayer(event.getPlayer());
     }
 
     @EventHandler
@@ -254,11 +262,11 @@ public final class BuildToolsManager implements Listener {
             }
             int topSize = event.getView().getTopInventory().getSize();
             boolean affectsTop = event.getRawSlots().stream().anyMatch(s -> s < topSize);
-            if (holder.type == GuiType.MAIN && affectsTop) {
+                if (holder.type == GuiType.MAIN && affectsTop) {
                 int floorSlot = 10;
                 if (event.getRawSlots().contains(floorSlot)) {
                     ItemStack cursor = event.getOldCursor();
-                    if (cursor != null && cursor.getType().isBlock()) {
+                    if (cursor != null && canUseAsFloor(cursor.getType())) {
                         event.setCancelled(true);
                         applyFloor(player, cursor.getType());
                         openMainGui(player);
@@ -299,7 +307,8 @@ public final class BuildToolsManager implements Listener {
         // Show selected floor preview in F slot if any
         PlayerBuildState st = playerState.computeIfAbsent(player.getUniqueId(), id -> new PlayerBuildState());
         if (st.floorMaterial != null) {
-            inv.setItem(10, ItemFactory.named(st.floorMaterial, ChatColor.GREEN + "Пол: " + neat(st.floorMaterial), List.of(ChatColor.GRAY + "Перетащите новый блок, чтобы изменить")));
+            Material displayMat = displayIconForFloor(st.floorMaterial);
+            inv.setItem(10, ItemFactory.named(displayMat, ChatColor.GREEN + "Пол: " + neat(st.floorMaterial), List.of(ChatColor.GRAY + "Перетащите новый блок/ведро, чтобы изменить")));
         }
 
         openLater(player, inv);
@@ -413,6 +422,25 @@ public final class BuildToolsManager implements Listener {
             });
         }
         player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Пол изменен: " + neat(material)));
+    }
+
+    // Allow floor replacement using blocks or specific buckets that map to fluids
+    public boolean canUseAsFloor(Material material) {
+        if (material == null) return false;
+        if (material.isBlock()) return true;
+        if (material == Material.WATER_BUCKET || material == Material.LAVA_BUCKET) return true;
+        String name = material.name();
+        return name.endsWith("_BUCKET") && (name.contains("SALMON") || name.contains("COD") || name.contains("PUFFERFISH") || name.contains("TROPICAL_FISH") || name.contains("AXOLOTL") || name.contains("TADPOLE"));
+    }
+
+    private Material displayIconForFloor(Material floor) {
+        if (floor == Material.WATER) return Material.WATER_BUCKET;
+        if (floor == Material.LAVA) return Material.LAVA_BUCKET;
+        // If the floor material isn't an item (just in case), show a barrier icon
+        try {
+            if (!floor.isItem()) return Material.BARRIER;
+        } catch (Throwable ignored) {}
+        return floor;
     }
 
     public void applyEnvForPlot(Plot plot) {

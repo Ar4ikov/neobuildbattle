@@ -1,7 +1,6 @@
 package com.neobuildbattle.core.build.click;
 
 import com.neobuildbattle.core.build.BuildToolsManager;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
@@ -14,12 +13,12 @@ public final class MainClickHandler implements GuiClickHandler {
     public void handle(Player player, int rawSlot, InventoryClickEvent event) {
         if (rawSlot == 10) {
             ItemStack cursor = event.getCursor();
-            if (cursor != null && cursor.getType().isBlock()) {
+            if (cursor != null && mgr.canUseAsFloor(cursor.getType())) {
                 mgr.applyFloor(player, cursor.getType());
                 mgr.openMainGui(player);
             } else {
                 ItemStack current = event.getCurrentItem();
-                if (current != null && current.getType().isBlock()) {
+                if (current != null && mgr.canUseAsFloor(current.getType())) {
                     mgr.applyFloor(player, current.getType());
                     mgr.openMainGui(player);
                 }
