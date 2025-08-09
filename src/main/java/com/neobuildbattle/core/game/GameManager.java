@@ -39,6 +39,8 @@ public final class GameManager implements Listener {
     // Tracks the plot currently being оценка (used for movement clamp in EVALUATION)
     private volatile Plot currentEvaluationPlot = null;
     private int countdownTask = -1;
+    private int buildTimerTask = -1;
+    private int themeVoteTask = -1;
 
     public GameManager(NeoBuildBattleCore plugin,
                        LobbyManager lobbyManager,
@@ -164,12 +166,14 @@ public final class GameManager implements Listener {
                 countdownTask = -1;
                 // Final sanity check before starting
                 if (hasEnoughPlayers()) {
+                    com.neobuildbattle.core.util.Sounds.playPhaseCompleteToAll();
                     runThemeVoting();
                 } else {
                     cancelCountdown(true);
                 }
             } else {
                 plugin.getMessages().broadcast("countdown_tick", plugin.getMessages().map("seconds", t));
+                com.neobuildbattle.core.util.Sounds.playCountdownTickToAll(t);
             }
         }, 0L, 20L);
     }
@@ -205,12 +209,27 @@ public final class GameManager implements Listener {
             p.setFlying(true);
         }
         int voteSeconds = plugin.getConfig().getInt("theme-vote-seconds", 10);
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            themeVotingManager.endVoting();
-            themeVotingManager.getWinningTheme().ifPresent(theme -> plugin.getMessages().broadcast("theme_chosen",
-                    plugin.getMessages().map("theme", theme)));
-            startBuildingPhase();
-        }, voteSeconds * 20L);
+        AtomicInteger left = new AtomicInteger(voteSeconds);
+        if (themeVoteTask != -1) {
+            Bukkit.getScheduler().cancelTask(themeVoteTask);
+        }
+        themeVoteTask = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            int t = left.getAndDecrement();
+            if (t <= 0) {
+                Bukkit.getScheduler().cancelTask(themeVoteTask);
+                themeVoteTask = -1;
+                themeVotingManager.endVoting();
+                themeVotingManager.getWinningTheme().ifPresent(theme -> plugin.getMessages().broadcast("theme_chosen",
+                        plugin.getMessages().map("theme", theme)));
+                com.neobuildbattle.core.util.Sounds.playPhaseCompleteToAll();
+                startBuildingPhase();
+                return;
+            }
+            if (t <= 5) {
+                plugin.getMessages().broadcast("theme_voting_countdown", plugin.getMessages().map("seconds", t));
+                com.neobuildbattle.core.util.Sounds.playCountdownTickToAll(t);
+            }
+        }, 0L, 20L);
     }
 
     private void startBuildingPhase() {
@@ -239,13 +258,60 @@ public final class GameManager implements Listener {
 
         int buildSeconds = plugin.getConfig().getInt("build-seconds", 420);
         plugin.getMessages().broadcast("building_start", plugin.getMessages().map("minutes", buildSeconds / 60));
-        Bukkit.getScheduler().runTaskLater(plugin, this::startEvaluationPhase, buildSeconds * 20L);
+        com.neobuildbattle.core.util.Sounds.playPhaseCompleteToAll();
+        startBuildTimer(buildSeconds);
+    }
+
+    private void startBuildTimer(int totalSeconds) {
+        AtomicInteger left = new AtomicInteger(totalSeconds);
+        if (buildTimerTask != -1) Bukkit.getScheduler().cancelTask(buildTimerTask);
+        final boolean[] tickAlt = {false};
+        buildTimerTask = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            if (state != GameState.BUILDING) {
+                Bukkit.getScheduler().cancelTask(buildTimerTask);
+                buildTimerTask = -1;
+                return;
+            }
+            int t = left.getAndDecrement();
+            if (t <= 0) {
+                Bukkit.getScheduler().cancelTask(buildTimerTask);
+                buildTimerTask = -1;
+                com.neobuildbattle.core.util.Sounds.playPhaseCompleteToAll();
+                startEvaluationPhase();
+                return;
+            }
+            // Minute reminders
+            if (t % 60 == 0) {
+                plugin.getMessages().broadcast("building_minute", plugin.getMessages().map("minutes", t / 60));
+                com.neobuildbattle.core.util.Sounds.playBuildTickToAll(false);
+                return;
+            }
+            // 30s and 15s warnings
+            if (t == 30) {
+                plugin.getMessages().broadcast("building_30s", null);
+                com.neobuildbattle.core.util.Sounds.playBuildTickToAll(false);
+                return;
+            }
+            if (t == 15) {
+                plugin.getMessages().broadcast("building_15s", null);
+                com.neobuildbattle.core.util.Sounds.playBuildTickToAll(false);
+                return;
+            }
+            // Last 10 seconds every second
+            if (t <= 10) {
+                plugin.getMessages().broadcast("building_seconds", plugin.getMessages().map("seconds", t));
+                // Alternate between bass drum and snare for tick-tock feel
+                tickAlt[0] = !tickAlt[0];
+                com.neobuildbattle.core.util.Sounds.playBuildTickToAll(tickAlt[0]);
+            }
+        }, 20L, 20L);
     }
 
     private void startEvaluationPhase() {
         if (state != GameState.BUILDING) return;
         state = GameState.EVALUATION;
         plugin.getMessages().broadcast("evaluation_start", null);
+        com.neobuildbattle.core.util.Sounds.playPhaseCompleteToAll();
 
         // Reset scores storage
         votingScoreboard.clear();
@@ -330,11 +396,8 @@ public final class GameManager implements Listener {
         // Determine winner
         UUID winner = votingScoreboard.getWinner();
         String winnerName = winner != null ? Bukkit.getOfflinePlayer(winner).getName() : null;
-        if (winnerName != null) {
-            plugin.getMessages().broadcast("winner", plugin.getMessages().map("player", winnerName));
-        } else {
-            plugin.getMessages().broadcast("no_winner", null);
-        }
+        broadcastWinnersFancy(winner);
+        com.neobuildbattle.core.util.Sounds.playPhaseCompleteToAll();
         // Teleport everyone to winner's plot and start fireworks + leaderboard
         Plot winnerPlot = winner != null ? plotManager.getPlotByOwner(winner) : null;
         if (winnerPlot != null) {
@@ -342,25 +405,12 @@ public final class GameManager implements Listener {
                 p.teleport(winnerPlot.getViewLocation());
             }
         }
-        // Leaderboard: top 3 broadcast and personal place for others
-        var top = votingScoreboard.getTop(3);
-        if (!top.isEmpty()) {
-            Bukkit.broadcast(net.kyori.adventure.text.Component.text("ТОП-3:"));
-            int rank = 1;
-            for (var e : top) {
-                String name = Bukkit.getOfflinePlayer(e.getKey()).getName();
-                Bukkit.broadcast(net.kyori.adventure.text.Component.text(rank + ". " + (name == null ? e.getKey() : name) + " - " + e.getValue()));
-                rank++;
-            }
-            for (Player p : Bukkit.getOnlinePlayers()) {
-                UUID id = p.getUniqueId();
-                boolean inTop = top.stream().anyMatch(en -> en.getKey().equals(id));
-                if (!inTop) {
-                    int place = votingScoreboard.getPlace(id);
-                    int score = votingScoreboard.getScore(id);
-                    p.sendMessage("Ваше место: " + place + ", очки: " + score);
-                }
-            }
+        // Personal results to each player
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            int place = votingScoreboard.getPlace(p.getUniqueId());
+            int score = votingScoreboard.getScore(p.getUniqueId());
+            p.sendMessage(plugin.getMessages().format("winners_you_place", plugin.getMessages().map("your_place", place)).append(net.kyori.adventure.text.Component.empty()));
+            p.sendMessage(plugin.getMessages().format("winners_you_score", plugin.getMessages().map("your_score", score)).append(net.kyori.adventure.text.Component.empty()));
         }
 
         // Fireworks task during ending phase (every ~0.7s)
@@ -414,6 +464,29 @@ public final class GameManager implements Listener {
             // auto-try next round
             Bukkit.getScheduler().runTaskLater(plugin, this::tryStartCountdown, 40L);
         }, 200L);
+    }
+
+    private void broadcastWinnersFancy(UUID winnerId) {
+        var top = votingScoreboard.getTop(3);
+        Bukkit.broadcast(plugin.getMessages().format("winners_header", null));
+        if (winnerId != null) {
+            String wName = Bukkit.getOfflinePlayer(winnerId).getName();
+            int wScore = votingScoreboard.getScore(winnerId);
+            Bukkit.broadcast(plugin.getMessages().format("winners_title", plugin.getMessages().map("winner_name", String.valueOf(wName), "winner_score", wScore)));
+        } else {
+            Bukkit.broadcast(plugin.getMessages().format("winners_title", plugin.getMessages().map("winner_name", "никто", "winner_score", 0)));
+        }
+        int place = 1;
+        for (var e : top) {
+            String name = Bukkit.getOfflinePlayer(e.getKey()).getName();
+            Bukkit.broadcast(plugin.getMessages().format("winners_place_line", plugin.getMessages().map(
+                    "place", place,
+                    "name", String.valueOf(name),
+                    "score", e.getValue()
+            )));
+            place++;
+        }
+        Bukkit.broadcast(plugin.getMessages().format("winners_footer", null));
     }
 
     public void shutdown() {

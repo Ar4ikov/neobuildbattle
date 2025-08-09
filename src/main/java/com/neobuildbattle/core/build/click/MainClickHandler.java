@@ -15,11 +15,13 @@ public final class MainClickHandler implements GuiClickHandler {
             ItemStack cursor = event.getCursor();
             if (cursor != null && mgr.canUseAsFloor(cursor.getType())) {
                 mgr.applyFloor(player, cursor.getType());
+                com.neobuildbattle.core.util.Sounds.playUiClick(player);
                 mgr.openMainGui(player);
             } else {
                 ItemStack current = event.getCurrentItem();
                 if (current != null && mgr.canUseAsFloor(current.getType())) {
                     mgr.applyFloor(player, current.getType());
+                    com.neobuildbattle.core.util.Sounds.playUiClick(player);
                     mgr.openMainGui(player);
                 }
             }

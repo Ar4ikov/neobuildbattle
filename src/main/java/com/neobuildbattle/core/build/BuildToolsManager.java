@@ -137,6 +137,7 @@ public final class BuildToolsManager implements Listener {
             // Only builders can open GUI
             if (isBuilder(player)) {
                 event.setCancelled(true);
+                com.neobuildbattle.core.util.Sounds.playUiClick(player);
                 openMainGui(player);
             } else {
                 // Block spectators from using the tool at all
@@ -165,6 +166,7 @@ public final class BuildToolsManager implements Listener {
                 return;
             }
             env.particleCenters.add(new ParticleCenter(center, particle));
+            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 1.3f);
             player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Точка партиклов добавлена"));
             return;
         }
@@ -180,6 +182,7 @@ public final class BuildToolsManager implements Listener {
             ParticleCenter toRemove = raycastParticleCenter(player, env.particleCenters, 32.0, 0.9);
             if (toRemove != null) {
                 env.particleCenters.remove(toRemove);
+                player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.7f, 0.8f);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.YELLOW + "Точка удалена"));
             } else {
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.RED + "Рядом нет точки"));
@@ -223,6 +226,8 @@ public final class BuildToolsManager implements Listener {
             boolean inTop = raw < topSize;
             if (inTop) {
                 event.setCancelled(true);
+                // Click sound for GUI interactions
+                com.neobuildbattle.core.util.Sounds.playUiClick(player);
                 GuiType type = holder.type;
                 if (type == GuiType.MAIN) {
                     handleMainClick(player, raw, event);
@@ -269,6 +274,7 @@ public final class BuildToolsManager implements Listener {
                     if (cursor != null && canUseAsFloor(cursor.getType())) {
                         event.setCancelled(true);
                         applyFloor(player, cursor.getType());
+                        com.neobuildbattle.core.util.Sounds.playUiClick(player);
                         openMainGui(player);
                         return;
                     }

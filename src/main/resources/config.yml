@@ -1,5 +1,5 @@
-max-players: 16
-min-players: 4
+max-players: 2
+min-players: 1
 matrix-size: 4
 build-area-size: 65
 plot-floor-material: WHITE_CONCRETE
@@ -7,10 +7,33 @@ plot-wall-material: WHITE_CONCRETE
 plot-wall-height: 50
 plot-ring-material: LIGHT_GRAY_CONCRETE
 max-build-height: 40
-countdown-seconds: 20
-theme-vote-seconds: 10
-build-seconds: 420
-evaluation-seconds-per-plot: 20
+countdown-seconds: 5
+theme-vote-seconds: 5
+build-seconds: 180
+evaluation-seconds-per-plot: 10
+
+# Sound configuration
+sounds:
+  enabled: true
+  ui_click:
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    volume: 0.6
+    pitch: 1.2
+  phase_complete:
+    sound: ENTITY_PLAYER_LEVELUP
+    volume: 0.9
+    pitch: 1.0
+  countdown_tick:
+    sound: ENTITY_EXPERIENCE_ORB_PICKUP
+    volume: 0.6
+    pitch_start: 0.9
+    pitch_step: 0.05
+  build_tick:
+    alternate: true
+    sound_a: BLOCK_NOTE_BLOCK_BASEDRUM
+    pitch_a: 0.8
+    sound_b: BLOCK_NOTE_BLOCK_SNARE
+    pitch_b: 1.0
 
 worlds:
   lobby: world
@@ -19,7 +42,7 @@ worlds:
 lobby-spawn:
   world: world
   x: 0.5
-  y: 64.0
+  y: 69.0
   z: 0.5
   yaw: 0.0
   pitch: 0.0

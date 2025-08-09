@@ -12,11 +12,20 @@ theme_chosen: "{prefix}&bТема: &a{theme}"
 
 building_start: "{prefix}&aСтроительство началось! У вас &f{minutes}&a минут."
 building_tick: "{prefix}&aОсталось &f{mm}:{ss}"
+building_minute: "{prefix}&aОсталось &f{minutes}&a мин."
+building_30s: "{prefix}&eОсталось &630 &eсекунд!"
+building_15s: "{prefix}&eОсталось &615 &eсекунд!"
+building_seconds: "{prefix}&6{seconds}&es до окончания строительства!"
 
 evaluation_start: "{prefix}&dОценивание построек началось!"
 evaluation_next: "{prefix}&dОцениваем постройку &f{player}"
+theme_voting_countdown: "{prefix}&bГолосование: &f{seconds}&bs"
 
-winner: "{prefix}&6Победитель: &e{player}"
-no_winner: "{prefix}&6Победитель: &7никто"
+winners_header: "&8&m-----------------------------------------------------"
+winners_title: "&6&lПобедитель: &e{winner_name} &7- &f{winner_score} &7очк(а/ов)"
+winners_place_line: "&e{place}. &f{name} &7- &f{score} &7очк(а/ов)"
+winners_you_place: "&aВаше место - &f{your_place}"
+winners_you_score: "&aВаши очки - &f{your_score}"
+winners_footer: "&8&m-----------------------------------------------------"
 
 
