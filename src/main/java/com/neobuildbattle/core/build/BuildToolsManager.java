@@ -133,10 +133,13 @@ public final class BuildToolsManager implements Listener {
         Player player = event.getPlayer();
 
         if (pdc.has(toolKey, PersistentDataType.INTEGER)) {
-            // Open main GUI on any click while holding tool
-            if (ensureIsBuilding(player)) {
+            // Only builders can open GUI
+            if (isBuilder(player)) {
                 event.setCancelled(true);
                 openMainGui(player);
+            } else {
+                // Block spectators from using the tool at all
+                event.setCancelled(true);
             }
             return;
         }
@@ -372,6 +375,10 @@ public final class BuildToolsManager implements Listener {
         return gm != null && gm.getState() == GameState.BUILDING;
     }
 
+    private boolean isBuilder(Player player) {
+        return ensureIsBuilding(player) && plugin.getPlayerRegistry().isActive(player.getUniqueId());
+    }
+
     public void applyFloor(Player player, Material material) {
         // map water/lava buckets and all water creatures buckets to water/lava floor
         if (material == Material.WATER_BUCKET || material == Material.LAVA_BUCKET) {
@@ -495,7 +502,12 @@ public final class BuildToolsManager implements Listener {
 
     public static void fillBackground(Inventory inv) {
         ItemStack pane = ItemFactory.named(Material.GRAY_STAINED_GLASS_PANE, ChatColor.DARK_GRAY + "", null);
-        for (int i = 0; i < inv.getSize(); i++) inv.setItem(i, pane);
+        for (int i = 0; i < inv.getSize(); i++) {
+            ItemStack prev = inv.getItem(i);
+            if (prev == null || prev.getType() == Material.AIR) {
+                inv.setItem(i, pane);
+            }
+        }
     }
 
     private String neat(Material material) {
@@ -578,7 +590,9 @@ public final class BuildToolsManager implements Listener {
         if (plot == null) return;
         PlotEnvironmentState env = plotEnv.computeIfAbsent(plot.getOwnerId(), id -> new PlotEnvironmentState());
         env.timeTicks = ticks;
+        // Ставим время локально всем, кто на плоте, и серверное время для консистентности эффектов
         applyEnvForPlot(plot);
+        plot.getSpawnLocation().getWorld().setTime(ticks);
         player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GOLD + "Время обновлено"));
     }
     public void applyWeather(Player player, WeatherType wt, boolean storm) {
@@ -587,7 +601,18 @@ public final class BuildToolsManager implements Listener {
         PlotEnvironmentState env = plotEnv.computeIfAbsent(plot.getOwnerId(), id -> new PlotEnvironmentState());
         env.weather = wt;
         env.storm = storm;
+        // Ставим локально всем на плоте и синхронизируем мир, чтобы были капли дождя/гром
         applyEnvForPlot(plot);
+        var world = plot.getSpawnLocation().getWorld();
+        if (world != null) {
+            if (wt == WeatherType.CLEAR) {
+                world.setStorm(false);
+                world.setThundering(false);
+            } else {
+                world.setStorm(true);
+                world.setThundering(storm);
+            }
+        }
         player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.AQUA + "Погода обновлена"));
     }
 

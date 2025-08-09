@@ -62,6 +62,8 @@ public final class GameManager implements Listener {
         } else {
             // Game running: make spectator
             NeoBuildBattleCore.getInstance().getSpectatorManager().makeSpectator(p);
+            // Ensure not counted as active participant mid-game
+            playerRegistry.remove(p.getUniqueId());
         }
     }
 
