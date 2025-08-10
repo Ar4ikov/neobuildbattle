@@ -11,9 +11,11 @@ import com.neobuildbattle.core.build.selection.Selection;
 import com.neobuildbattle.core.build.selection.SelectionMode;
 import com.neobuildbattle.core.build.selection.SelectionService;
 import com.neobuildbattle.core.plot.Plot;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -47,7 +49,7 @@ public final class AdvancedToolsManager implements Listener {
         this.toolKey = new NamespacedKey(plugin, "adv_tool_kind");
     }
 
-    public enum ToolKind { FILL_SOLID, FILL_HOLLOW, FILL_WALLS, COPY, PASTE, PASTE_AIR_TOGGLE }
+    public enum ToolKind { FILL_SOLID, FILL_HOLLOW, FILL_WALLS, COPY, PASTE, PASTE_AIR_TOGGLE, REPLACE }
 
     public ItemStack createToolItem(ToolKind kind, Material icon, String name) {
         ItemStack it = new ItemStack(icon);
@@ -85,6 +87,91 @@ public final class AdvancedToolsManager implements Listener {
             case COPY -> performCopy(p);
             case PASTE -> clipboardService.pasteAtFeet(p);
             case PASTE_AIR_TOGGLE -> clipboardService.setPasteAir(p, !clipboardService.isPasteAir(p));
+            case REPLACE -> handleReplaceTool(p, action, sneaking);
+        }
+    }
+
+    // Replace tool state (per-player, ephemeral)
+    private final Map<UUID, java.util.Set<Material>> replaceMasks = new HashMap<>();
+
+    public java.util.Set<Material> getMask(Player p) {
+        return replaceMasks.computeIfAbsent(p.getUniqueId(), id -> new java.util.HashSet<>());
+    }
+
+    public void handleReplaceTool(Player p, Action action, boolean sneaking) {
+        if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
+            // Replace all masked blocks in selection with pattern
+            Selection s = selectionService.getSelection(p);
+            if (s.getPoints().isEmpty()) {
+                p.sendActionBar(net.kyori.adventure.text.Component.text(org.bukkit.ChatColor.RED + "Нет выделения"));
+                return;
+            }
+            java.util.Set<Material> mask = getMask(p);
+            if (mask.isEmpty()) {
+                p.sendActionBar(net.kyori.adventure.text.Component.text(org.bukkit.ChatColor.RED + "Пустая маска замены"));
+                return;
+            }
+            BlockPattern pattern = getOrCreatePattern(p);
+            FillAlgorithm.MaterialProvider provider = (x, y, z) -> {
+                Material m = p.getWorld().getBlockAt(x, y, z).getType();
+                if (!mask.contains(m)) return null;
+                return pattern.pick(x, y, z);
+            };
+            // Use solid fill iterator over selection and only change where provider != null
+            World w = p.getWorld();
+            SelectionMode m = s.getMode();
+            switch (m) {
+                case CUBOID -> {
+                    Vector min = s.getMin();
+                    Vector max = s.getMax();
+                    if (min == null || max == null) return;
+                    var it = AreaIterators.cuboid(min, max);
+                    new SolidFill().fill(w, it, provider);
+                }
+                case SPHERE -> {
+                    if (s.getPoints().size() < 2) return;
+                    var it = AreaIterators.sphere(s.getPoints().get(0), s.getPoints().get(1).distance(s.getPoints().get(0)));
+                    new SolidFill().fill(w, it, provider);
+                }
+                case ELLIPSOID -> {
+                    if (s.getPoints().size() < 2) return;
+                    var it = AreaIterators.ellipsoid(s.getPoints().get(0), s.getPoints().get(1));
+                    new SolidFill().fill(w, it, provider);
+                }
+                case POLYGON -> {
+                    if (s.getPoints().size() < 3) return;
+                    var it = AreaIterators.polygon(s.getPoints());
+                    new SolidFill().fill(w, it, provider);
+                }
+                case POLYFRAME -> {
+                    if (s.getPoints().size() < 2) return;
+                    var pts = s.getPoints();
+                    for (int i = 0; i < pts.size(); i++) {
+                        var a = pts.get(i);
+                        var b = pts.get((i + 1) % pts.size());
+                        drawEdge(w, a, b, provider);
+                    }
+                }
+            }
+            com.neobuildbattle.core.util.Sounds.playUiClick(p);
+        } else if (action == Action.RIGHT_CLICK_BLOCK || action == Action.RIGHT_CLICK_AIR) {
+            if (sneaking) {
+                replaceMasks.remove(p.getUniqueId());
+                p.sendActionBar(net.kyori.adventure.text.Component.text(org.bukkit.ChatColor.YELLOW + "Маска очищена"));
+                return;
+            }
+            // Open mask GUI
+            Inventory inv = Bukkit.createInventory(new com.neobuildbattle.core.build.gui.BuildGuiHolder(com.neobuildbattle.core.build.gui.GuiType.REPLACE_MASK), 54, org.bukkit.ChatColor.YELLOW + "Маска замены");
+            com.neobuildbattle.core.build.BuildToolsManager.fillBackground(inv);
+            // Put current mask items into inner grid
+            int idx = 0;
+            for (Material m : getMask(p)) {
+                if (idx >= 28) break;
+                int slot = (1 + (idx / 7)) * 9 + (1 + (idx % 7));
+                inv.setItem(slot, new ItemStack(m));
+                idx++;
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> p.openInventory(inv));
         }
     }
 

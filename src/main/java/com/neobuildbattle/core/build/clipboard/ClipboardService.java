@@ -41,10 +41,10 @@ public final class ClipboardService {
         int sy = maxY - minY + 1;
         int sz = maxZ - minZ + 1;
         Clipboard clip = new Clipboard(sx, sy, sz);
-        // anchor on player's feet within the selection bounds if possible
-        int ax = Math.max(0, Math.min(sx - 1, p.getLocation().getBlockX() - minX));
-        int ay = Math.max(0, Math.min(sy - 1, p.getLocation().getBlockY() - minY));
-        int az = Math.max(0, Math.min(sz - 1, p.getLocation().getBlockZ() - minZ));
+        // Anchor is the copy point (first selection point 'a') so that copy point == paste point == rotation pivot
+        int ax = a.getBlockX() - minX;
+        int ay = a.getBlockY() - minY;
+        int az = a.getBlockZ() - minZ;
         clip.setAnchor(ax, ay, az);
         for (int y = 0; y < sy; y++) {
             for (int z = 0; z < sz; z++) {
@@ -61,30 +61,41 @@ public final class ClipboardService {
     public void rotateYaw(Player p, boolean clockwise) {
         Clipboard clip = buffers.get(p.getUniqueId());
         if (clip == null) return;
-        // rotate around Y (swap X/Z)
         int sx = clip.getSizeX();
         int sy = clip.getSizeY();
         int sz = clip.getSizeZ();
-        Clipboard out = new Clipboard(sz, sy, sx);
-        // rotate around anchor
+        Clipboard out = new Clipboard(sz, sy, sx); // X'<-Z, Z'<-X
         int ax = clip.getAnchorX();
         int ay = clip.getAnchorY();
         int az = clip.getAnchorZ();
+
+        // Compute new anchor position so that rotation is around pivot correctly
+        int newAx, newAz;
+        if (clockwise) {
+            newAx = az;
+            newAz = (sx - 1) - ax;
+        } else {
+            newAx = (sz - 1) - az;
+            newAz = ax;
+        }
+
         for (int y = 0; y < sy; y++) {
             for (int z = 0; z < sz; z++) {
                 for (int x = 0; x < sx; x++) {
-                    int rx = x - ax;
-                    int rz = z - az;
-                    int nx = clockwise ? (az + rz) : (az - rz);
-                    int nz = clockwise ? (ax - rx) : (ax + rx);
-                    BlockData data = clip.get(x, y, z);
-                    if (nx >= 0 && nx < sz && nz >= 0 && nz < sx) out.set(nx, y, nz, data);
+                    int dx = x - ax;
+                    int dz = z - az;
+                    int rx = clockwise ? dz : -dz;
+                    int rz = clockwise ? -dx : dx;
+                    int nx = newAx + rx;
+                    int nz = newAz + rz;
+                    if (nx < 0 || nx >= sz || nz < 0 || nz >= sx) continue;
+                    BlockData data = rotateBlockDataYaw(clip.get(x, y, z), clockwise);
+                    out.set(nx, y, nz, data);
                 }
             }
         }
         out.setPasteAir(clip.isPasteAir());
-        // new anchor mapping
-        out.setAnchor(az, ay, ax);
+        out.setAnchor(newAx, ay, newAz);
         buffers.put(p.getUniqueId(), out);
         com.neobuildbattle.core.util.Sounds.playUiClick(p);
     }
@@ -99,17 +110,18 @@ public final class ClipboardService {
         int ax = clip.getAnchorX();
         int ay = clip.getAnchorY();
         int az = clip.getAnchorZ();
+        int newAx = (sx - 1) - ax;
         for (int y = 0; y < sy; y++) {
             for (int z = 0; z < sz; z++) {
                 for (int x = 0; x < sx; x++) {
-                    int rx = x - ax;
-                    int mx = ax - rx; // reflect around anchor axis
-                    out.set(mx, y, z, clip.get(x, y, z));
+                    int mx = (sx - 1) - x; // reverse X within bounds
+                    BlockData data = mirrorBlockDataX(clip.get(x, y, z));
+                    out.set(mx, y, z, data);
                 }
             }
         }
         out.setPasteAir(clip.isPasteAir());
-        out.setAnchor(ax, ay, az);
+        out.setAnchor(newAx, ay, az);
         buffers.put(p.getUniqueId(), out);
         com.neobuildbattle.core.util.Sounds.playUiClick(p);
     }
@@ -124,17 +136,18 @@ public final class ClipboardService {
         int ax = clip.getAnchorX();
         int ay = clip.getAnchorY();
         int az = clip.getAnchorZ();
+        int newAy = (sy - 1) - ay;
         for (int y = 0; y < sy; y++) {
             for (int z = 0; z < sz; z++) {
                 for (int x = 0; x < sx; x++) {
-                    int ry = y - ay;
-                    int my = ay - ry;
-                    out.set(x, my, z, clip.get(x, y, z));
+                    int my = (sy - 1) - y;
+                    BlockData data = mirrorBlockDataY(clip.get(x, y, z));
+                    out.set(x, my, z, data);
                 }
             }
         }
         out.setPasteAir(clip.isPasteAir());
-        out.setAnchor(ax, ay, az);
+        out.setAnchor(ax, newAy, az);
         buffers.put(p.getUniqueId(), out);
         com.neobuildbattle.core.util.Sounds.playUiClick(p);
     }
@@ -184,6 +197,81 @@ public final class ClipboardService {
                     w.getBlockAt(wx, wy, wz).setBlockData(data, false);
                 }
             }
+        }
+    }
+
+    // ---------- BlockData transforms ----------
+    private BlockData rotateBlockDataYaw(BlockData data, boolean clockwise) {
+        if (data == null) return null;
+        try {
+            if (data instanceof org.bukkit.block.data.Directional dir) {
+                org.bukkit.block.BlockFace f = dir.getFacing();
+                org.bukkit.block.BlockFace rf = rotateFaceYaw(f, clockwise);
+                if (rf != f) { dir.setFacing(rf); return dir; }
+            }
+            if (data instanceof org.bukkit.block.data.Orientable ori) {
+                java.util.Set<org.bukkit.Axis> axes = ori.getAxes();
+                if (axes.contains(org.bukkit.Axis.X) && axes.contains(org.bukkit.Axis.Z)) {
+                    // both allowed; prefer swapping primary axis
+                    // no direct setter for dual axes; leave as is
+                } else if (axes.contains(org.bukkit.Axis.X)) {
+                    ori.setAxis(org.bukkit.Axis.Z); return ori;
+                } else if (axes.contains(org.bukkit.Axis.Z)) {
+                    ori.setAxis(org.bukkit.Axis.X); return ori;
+                }
+            }
+            if (data instanceof org.bukkit.block.data.Rotatable rot) {
+                org.bukkit.block.BlockFace f = rot.getRotation();
+                if (f != null) { rot.setRotation(rotateFaceYaw(f, clockwise)); return rot; }
+            }
+        } catch (Throwable ignored) {}
+        return data;
+    }
+
+    private BlockData mirrorBlockDataX(BlockData data) {
+        if (data == null) return null;
+        try {
+            if (data instanceof org.bukkit.block.data.Directional dir) {
+                org.bukkit.block.BlockFace f = dir.getFacing();
+                if (f == org.bukkit.block.BlockFace.EAST) dir.setFacing(org.bukkit.block.BlockFace.WEST);
+                else if (f == org.bukkit.block.BlockFace.WEST) dir.setFacing(org.bukkit.block.BlockFace.EAST);
+                return dir;
+            }
+            if (data instanceof org.bukkit.block.data.Rotatable rot) {
+                org.bukkit.block.BlockFace f = rot.getRotation();
+                if (f != null) {
+                    switch (f) {
+                        case EAST -> rot.setRotation(org.bukkit.block.BlockFace.WEST);
+                        case WEST -> rot.setRotation(org.bukkit.block.BlockFace.EAST);
+                        default -> {}
+                    }
+                }
+                return rot;
+            }
+        } catch (Throwable ignored) {}
+        return data;
+    }
+
+    private BlockData mirrorBlockDataY(BlockData data) {
+        if (data == null) return null;
+        try {
+            if (data instanceof org.bukkit.block.data.Directional dir) {
+                org.bukkit.block.BlockFace f = dir.getFacing();
+                if (f == org.bukkit.block.BlockFace.UP) dir.setFacing(org.bukkit.block.BlockFace.DOWN);
+                else if (f == org.bukkit.block.BlockFace.DOWN) dir.setFacing(org.bukkit.block.BlockFace.UP);
+                return dir;
+            }
+        } catch (Throwable ignored) {}
+        return data;
+    }
+
+    private org.bukkit.block.BlockFace rotateFaceYaw(org.bukkit.block.BlockFace face, boolean clockwise) {
+        switch (face) {
+            case NORTH: return clockwise ? org.bukkit.block.BlockFace.EAST : org.bukkit.block.BlockFace.WEST;
+            case EAST:  return clockwise ? org.bukkit.block.BlockFace.SOUTH : org.bukkit.block.BlockFace.NORTH;
+            case SOUTH: return clockwise ? org.bukkit.block.BlockFace.WEST : org.bukkit.block.BlockFace.EAST;
+            case WEST:  return clockwise ? org.bukkit.block.BlockFace.NORTH : org.bukkit.block.BlockFace.SOUTH;
+            default:    return face;
         }
     }
 }

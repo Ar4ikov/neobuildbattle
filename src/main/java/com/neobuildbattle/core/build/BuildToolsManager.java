@@ -244,6 +244,8 @@ public final class BuildToolsManager implements Listener {
                     handleAdvancedToolsClick(player, raw);
                 } else if (type == GuiType.PATTERN) {
                     handlePatternClick(player, raw, event);
+                } else if (type == GuiType.REPLACE_MASK) {
+                    handleReplaceMaskClick(player, raw, event);
                 } else if (type == GuiType.BIOMES) {
                     handleBiomesClick(player, raw);
                 }
@@ -257,11 +259,10 @@ public final class BuildToolsManager implements Listener {
                         var pattern = NeoBuildBattleCore.getInstance().getAdvancedToolsManager().getOrCreatePattern(player);
                         int amt = Math.max(1, current.getAmount());
                         if (isGradientToken(current)) {
-                            pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + amt));
                             Material base = parseGradientBase(current);
                             if (base != null) {
                                 java.util.List<Material> tones = NeoBuildBattleCore.getInstance().getBlockToneIndex().gradientFor(base);
-                                pattern.setGradient(new com.neobuildbattle.core.build.pattern.GradientTones(tones));
+                                pattern.addOrUpdateGradient(base, new com.neobuildbattle.core.build.pattern.GradientTones(tones), amt);
                             }
                         } else if (current.getType().isBlock() || current.getType() == Material.BARRIER) {
                             Material target = (current.getType() == Material.BARRIER) ? Material.AIR : current.getType();
@@ -324,11 +325,10 @@ public final class BuildToolsManager implements Listener {
                     var pattern = NeoBuildBattleCore.getInstance().getAdvancedToolsManager().getOrCreatePattern(player);
                     int amt = Math.max(1, cursor.getAmount());
                     if (isGradientToken(cursor)) {
-                        pattern.setGradientWeight(Math.max(0, pattern.getGradientWeight() + amt));
                         Material base = parseGradientBase(cursor);
                         if (base != null) {
                             java.util.List<Material> tones = NeoBuildBattleCore.getInstance().getBlockToneIndex().gradientFor(base);
-                            pattern.setGradient(new com.neobuildbattle.core.build.pattern.GradientTones(tones));
+                            pattern.addOrUpdateGradient(base, new com.neobuildbattle.core.build.pattern.GradientTones(tones), amt);
                         }
                     } else if (cursor.getType().isBlock() || cursor.getType() == Material.BARRIER) {
                         Material target = (cursor.getType() == Material.BARRIER) ? Material.AIR : cursor.getType();
@@ -457,6 +457,28 @@ public final class BuildToolsManager implements Listener {
 
     private void handlePatternClick(Player player, int slot, InventoryClickEvent event) {
         new com.neobuildbattle.core.build.click.PatternClickHandler().handle(player, slot, event);
+    }
+
+    private void handleReplaceMaskClick(Player player, int slot, InventoryClickEvent event) {
+        Inventory inv = event.getView().getTopInventory();
+        int r = slot / 9, c = slot % 9;
+        if (r >= 1 && r <= 4 && c >= 1 && c <= 7) {
+            event.setCancelled(true);
+            ItemStack cursor = event.getCursor();
+            ItemStack current = event.getCurrentItem();
+            var adv = NeoBuildBattleCore.getInstance().getAdvancedToolsManager();
+            if (adv == null) return;
+            var mask = adv.getMask(player);
+            if (cursor != null && cursor.getType() != Material.AIR) {
+                if (cursor.getType().isBlock()) mask.add(cursor.getType());
+            } else if (current != null && current.getType() != Material.AIR) {
+                mask.remove(current.getType());
+            }
+            // Re-render
+            adv.handleReplaceTool(player, org.bukkit.event.block.Action.RIGHT_CLICK_AIR, false);
+        } else {
+            event.setCancelled(true);
+        }
     }
 
     // ---------- Helpers ----------
@@ -714,12 +736,14 @@ public final class BuildToolsManager implements Listener {
         if (meta == null) return null;
         String name = meta.getDisplayName();
         if (name == null) return null;
-        String p = ChatColor.BLUE + "Градиент: ";
-        if (name.startsWith(p)) {
-            String matName = name.substring(p.length()).trim();
-            try {
-                return Material.matchMaterial(matName);
-            } catch (Throwable ignored) {}
+        String raw = ChatColor.stripColor(name);
+        String p = "Градиент: ";
+        if (raw.startsWith(p)) {
+            String tail = raw.substring(p.length()).trim();
+            int xPos = tail.indexOf(" x");
+            String matName = xPos >= 0 ? tail.substring(0, xPos).trim() : tail;
+            Material m = Material.matchMaterial(matName);
+            if (m != null) return m;
         }
         return null;
     }

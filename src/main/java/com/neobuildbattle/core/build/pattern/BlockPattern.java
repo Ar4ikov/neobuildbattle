@@ -9,55 +9,106 @@ import java.util.*;
  */
 public final class BlockPattern {
     private final Map<Material, Integer> weights = new LinkedHashMap<>();
-    private GradientTones gradientTones; // optional
-    private int gradientWeight = 0;
+    // Multiple gradients, keyed by base material used to generate tones
+    private final Map<Material, Integer> gradientWeights = new LinkedHashMap<>();
+    private final Map<Material, GradientTones> gradientTonesByBase = new LinkedHashMap<>();
 
     public void setWeight(Material m, int weight) {
         if (weight <= 0) weights.remove(m); else weights.put(m, weight);
     }
 
-    public void clear() { weights.clear(); gradientTones = null; }
+    public void clear() {
+        weights.clear();
+        gradientWeights.clear();
+        gradientTonesByBase.clear();
+    }
 
-    public void setGradient(GradientTones tones) { this.gradientTones = tones; }
+    public void addOrUpdateGradient(Material base, GradientTones tones, int deltaWeight) {
+        if (base == null || tones == null) return;
+        int newW = Math.max(0, gradientWeights.getOrDefault(base, 0) + deltaWeight);
+        if (newW <= 0) {
+            gradientWeights.remove(base);
+            gradientTonesByBase.remove(base);
+        } else {
+            gradientWeights.put(base, newW);
+            gradientTonesByBase.put(base, tones);
+        }
+    }
 
-    public void setGradientWeight(int w) { this.gradientWeight = Math.max(0, w); }
+    public void setGradientWeight(Material base, int weight) {
+        if (base == null) return;
+        int w = Math.max(0, weight);
+        if (w == 0) {
+            gradientWeights.remove(base);
+            gradientTonesByBase.remove(base);
+        } else {
+            gradientWeights.put(base, w);
+        }
+    }
 
-    public int getGradientWeight() { return gradientWeight; }
+    public int getGradientWeight(Material base) { return Math.max(0, gradientWeights.getOrDefault(base, 0)); }
 
-    public boolean hasGradient() { return gradientTones != null; }
+    public int getTotalGradientWeight() {
+        int sum = 0; for (int w : gradientWeights.values()) sum += Math.max(0, w); return sum;
+    }
+
+    public Map<Material, Integer> getGradientWeightsView() { return Collections.unmodifiableMap(gradientWeights); }
+
+    public boolean hasGradients() { return !gradientWeights.isEmpty(); }
 
     public Material pick(int x, int y, int z) {
-        int total = gradientWeight;
+        int total = getTotalGradientWeight();
         for (int w : weights.values()) total += w;
         if (total <= 0) return Material.AIR;
         int r = Math.abs(hashXYZ(x, y, z)) % total;
-        if (r < gradientWeight && gradientTones != null) {
-            return gradientTones.pickWithNoise(x, y, z);
+        int gsum = getTotalGradientWeight();
+        if (r < gsum && !gradientWeights.isEmpty()) {
+            // Choose which gradient band by weight
+            for (Map.Entry<Material, Integer> e : gradientWeights.entrySet()) {
+                int w = Math.max(0, e.getValue());
+                if (r < w) {
+                    GradientTones tones = gradientTonesByBase.get(e.getKey());
+                    return tones != null ? tones.pickWithNoise(x, y, z) : Material.AIR;
+                }
+                r -= w;
+            }
         } else {
-            r -= gradientWeight;
+            r -= gsum;
             for (Map.Entry<Material, Integer> e : weights.entrySet()) {
                 int w = e.getValue();
                 if (r < w) return e.getKey();
                 r -= w;
             }
         }
-        return gradientTones != null ? gradientTones.pickWithNoise(x, y, z) : weights.keySet().iterator().next();
+        // Fallback
+        if (!gradientWeights.isEmpty()) {
+            GradientTones any = gradientTonesByBase.values().stream().findFirst().orElse(null);
+            return any != null ? any.pickWithNoise(x, y, z) : Material.AIR;
+        }
+        return weights.isEmpty() ? Material.AIR : weights.keySet().iterator().next();
     }
 
     public Material pickForHeight(int x, int y, int z, int minY, int maxY) {
-        int total = gradientWeight;
+        int total = getTotalGradientWeight();
         for (int w : weights.values()) total += w;
         if (total <= 0) return Material.AIR;
         // vertical gradient 0..1 (top->bottom direction configurable here; currently top->bottom increasing)
         double t = 0.0;
         if (maxY > minY) t = (y - minY) / (double) (maxY - minY);
         int r = Math.abs(hashXYZ(x, y, z)) % total;
-        // allocate part of gradientWeight modulated by t to push tones smoothly by height
-        if (gradientTones != null && gradientWeight > 0) {
-            // noise + bias by height
-            return gradientTones.pickByHeightWithNoise(x, y, z, t);
+        int gsum = getTotalGradientWeight();
+        if (!gradientWeights.isEmpty() && gsum > 0) {
+            for (Map.Entry<Material, Integer> e : gradientWeights.entrySet()) {
+                int w = Math.max(0, e.getValue());
+                if (r < w) {
+                    GradientTones tones = gradientTonesByBase.get(e.getKey());
+                    return tones != null ? tones.pickByHeightWithNoise(x, y, z, t) : Material.AIR;
+                }
+                r -= w;
+            }
+        } else {
+            // fallback to plain pattern
         }
-        // fallback to plain pattern
         for (Map.Entry<Material, Integer> e : weights.entrySet()) {
             int w = e.getValue();
             if (r < w) return e.getKey();
@@ -67,11 +118,17 @@ public final class BlockPattern {
     }
 
     private int hashXYZ(int x, int y, int z) {
-        int h = 1469598101;
-        h ^= x * 374761393; h *= 16777619;
-        h ^= y * 668265263; h *= 16777619;
-        h ^= z * 2147483647; h *= 16777619;
-        return h;
+        // 64-bit SplitMix hash of 3D coordinates to avoid parity/checker artifacts
+        long a = (long) x * 0x9E3779B97F4A7C15L;
+        long b = (long) y * 0xC2B2AE3D27D4EB4FL;
+        long c = (long) z * 0x165667B19E3779F9L;
+        long seed = a ^ Long.rotateLeft(b, 21) ^ Long.rotateLeft(c, 42);
+        seed += 0x9E3779B97F4A7C15L;
+        seed = (seed ^ (seed >>> 30)) * 0xBF58476D1CE4E5B9L;
+        seed = (seed ^ (seed >>> 27)) * 0x94D049BB133111EBL;
+        seed = seed ^ (seed >>> 31);
+        int mixed = (int) (seed ^ (seed >>> 32));
+        return mixed == Integer.MIN_VALUE ? 0 : Math.abs(mixed);
     }
 
     public Map<Material, Integer> getWeightsView() {

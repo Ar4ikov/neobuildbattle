@@ -40,12 +40,14 @@ public final class PatternGui {
 
         // Заполнить текущие элементы паттерна в сетку 4x7
         int idx = 0;
-        if (pattern.getGradientWeight() > 0 && idx < 28) {
+        // Все градиенты (по базовым материалам)
+        for (var ge : pattern.getGradientWeightsView().entrySet()) {
+            if (idx >= 28) break;
             int slot = (1 + (idx / 7)) * 9 + (1 + (idx % 7));
             ItemStack paper = new ItemStack(Material.PAPER);
             ItemMeta meta = paper.getItemMeta();
             if (meta != null) {
-                meta.setDisplayName(ChatColor.BLUE + "Градиент" + ChatColor.GRAY + " x" + pattern.getGradientWeight());
+                meta.setDisplayName(ChatColor.BLUE + "Градиент: " + ge.getKey().name() + ChatColor.GRAY + " x" + ge.getValue());
                 paper.setItemMeta(meta);
             }
             inv.setItem(slot, paper);
@@ -69,7 +71,7 @@ public final class PatternGui {
             inv.setItem(slot, it);
             idx++;
         }
-        // Also refresh summary to include percentages and gradient line
+        // Also refresh summary to include percentages and gradient lines
         updateSummary(inv, pattern);
         return inv;
     }
@@ -78,9 +80,13 @@ public final class PatternGui {
         // Build dynamic lore with percentages
         List<String> lore = new ArrayList<>();
         lore.add(ChatColor.GRAY + "Распределение:");
-        int total = pattern.getGradientWeight();
+        int total = pattern.getTotalGradientWeight();
         for (var e : pattern.getWeightsView().entrySet()) total += Math.max(0, e.getValue());
-        if (pattern.getGradientWeight() > 0) lore.add(ChatColor.BLUE + "Градиент: " + percent(pattern.getGradientWeight(), total));
+        for (var ge : pattern.getGradientWeightsView().entrySet()) {
+            int gw = Math.max(0, ge.getValue());
+            if (gw <= 0) continue;
+            lore.add(ChatColor.BLUE + "Градиент(" + neat(ge.getKey()) + ")" + ChatColor.GRAY + ": " + percent(gw, total));
+        }
         for (var e : pattern.getWeightsView().entrySet()) {
             int w = Math.max(0, e.getValue());
             if (w <= 0) continue;

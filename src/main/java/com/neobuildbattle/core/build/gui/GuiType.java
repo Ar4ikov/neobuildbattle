@@ -8,7 +8,8 @@ public enum GuiType {
     PARTICLES,
     GRADIENTS,
     BIOMES,
-    PATTERN
+    PATTERN,
+    REPLACE_MASK
 }
 
 

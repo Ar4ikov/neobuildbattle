@@ -18,58 +18,66 @@ public final class AdvancedToolsClickHandler implements GuiClickHandler {
         var sel = plugin.getSelectionService();
         if (adv == null || sel == null) return;
         switch (rawSlot) {
-            case 20 -> { // axe
+            case 10 -> { // axe
                 ItemStack axe = sel.createAxeItem();
                 player.getInventory().addItem(axe);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.AQUA + "Выдан топор выделения"));
             }
-            case 21 -> { // solid fill
+            case 12 -> { // solid fill
                 ItemStack it = adv.createToolItem(ToolKind.FILL_SOLID, Material.ORANGE_CONCRETE, ChatColor.GOLD + "Сплошная заливка");
                 player.getInventory().addItem(it);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GOLD + "Инструмент заливки выдан"));
             }
-            case 22 -> { // hollow fill
+            case 13 -> { // hollow fill
                 ItemStack it = adv.createToolItem(ToolKind.FILL_HOLLOW, Material.HONEYCOMB_BLOCK, ChatColor.YELLOW + "Заливка с полостью");
                 player.getInventory().addItem(it);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.YELLOW + "Инструмент оболочки выдан"));
             }
-            case 23 -> { // walls fill
+            case 14 -> { // walls fill
                 ItemStack it = adv.createToolItem(ToolKind.FILL_WALLS, Material.BRICKS, ChatColor.YELLOW + "Заливка стен");
                 player.getInventory().addItem(it);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.YELLOW + "Инструмент стен выдан"));
             }
-            case 24 -> { // gradient picker
+            case 49 -> { // gradient picker
                 if (plugin.getGradientToolManager() != null) {
                     ItemStack it = plugin.getGradientToolManager().createPickerItem();
                     player.getInventory().addItem(it);
                     player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.BLUE + "Инструмент градиента выдан"));
                 }
             }
-            case 29 -> { // copy
+            case 28 -> { // copy
                 ItemStack it = adv.createToolItem(ToolKind.COPY, Material.PAPER, ChatColor.GREEN + "Копировать выделение");
                 player.getInventory().addItem(it);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Инструмент копирования выдан"));
             }
-            case 30 -> { // paste
+            case 29 -> { // paste
                 ItemStack it = adv.createToolItem(ToolKind.PASTE, Material.BOOK, ChatColor.GREEN + "Вставить у ног");
                 player.getInventory().addItem(it);
                 player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GREEN + "Инструмент вставки выдан"));
             }
-            case 31 -> { // paste air toggle tool
-                ItemStack it = adv.createToolItem(ToolKind.PASTE_AIR_TOGGLE, Material.GLASS, ChatColor.AQUA + "Переключить вставку воздуха");
-                player.getInventory().addItem(it);
-                player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.AQUA + "Добавлен переключатель воздуха"));
+            case 31 -> { // paste air toggle (immediate toggle)
+                boolean newState = !plugin.getClipboardService().isPasteAir(player);
+                plugin.getClipboardService().setPasteAir(player, newState);
+                player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.AQUA + (newState ? "Вставка воздуха: ВКЛ" : "Вставка воздуха: ВЫКЛ")));
             }
-            case 32 -> { // rotate CW
+            case 33 -> { // replace tool item
+                ItemStack it = adv.createToolItem(ToolKind.REPLACE, Material.GOLDEN_PICKAXE, ChatColor.GOLD + "Замена блоков");
+                player.getInventory().addItem(it);
+                player.sendActionBar(net.kyori.adventure.text.Component.text(ChatColor.GOLD + "Инструмент замены выдан"));
+            }
+            case 37 -> { // rotate CW
                 NeoBuildBattleCore.getInstance().getClipboardService().rotateYaw(player, true);
             }
-            case 33 -> { // rotate CCW
+            case 38 -> { // rotate CCW
                 NeoBuildBattleCore.getInstance().getClipboardService().rotateYaw(player, false);
             }
-            case 34 -> { // mirror horizontally
+            case 40 -> { // mirror horizontally
                 NeoBuildBattleCore.getInstance().getClipboardService().mirrorHorizontal(player);
             }
-            case 35 -> { // open pattern editor
+            case 41 -> { // mirror vertically
+                NeoBuildBattleCore.getInstance().getClipboardService().mirrorVertical(player);
+            }
+            case 16 -> { // open pattern editor
                 Inventory pat = plugin.getPatternGui().create(player, plugin.getAdvancedToolsManager().getOrCreatePattern(player));
                 player.openInventory(pat);
             }

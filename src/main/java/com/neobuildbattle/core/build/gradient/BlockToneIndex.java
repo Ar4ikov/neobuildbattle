@@ -285,10 +285,12 @@ public final class BlockToneIndex {
     }
 
     public List<Material> gradientFor(Material base) {
-        List<Material> g = gradients.get(base);
+        Material mapped = mapToClosestFullBlock(base);
+        Material key = mapped != null ? mapped : base;
+        List<Material> g = gradients.get(key);
         if (g != null && g.size() == 8) return g;
-        g = computeGradientFor(base);
-        gradients.put(base, g);
+        g = computeGradientFor(key);
+        gradients.put(key, g);
         return g;
     }
 
@@ -297,17 +299,24 @@ public final class BlockToneIndex {
         double tol = 0.05;
         List<Material> band = new ArrayList<>();
         while (band.size() < 8 && tol <= 0.25) {
-            band = hueBand(base, Integer.MAX_VALUE, tol);
+            // Ensure band is mutable even if hueBand returns an immutable singleton list
+            band = new java.util.ArrayList<>(hueBand(base, Integer.MAX_VALUE, tol));
             // Filter by glass family rule
             boolean glass = base.name().contains("GLASS");
             if (glass) band.removeIf(m -> !m.name().contains("GLASS")); else band.removeIf(m -> m.name().contains("GLASS"));
             // Sort by luminance and center around base
             Tone tb = tones.get(base);
-            band.sort(Comparator.comparingDouble(m -> tones.get(m).lum));
+            if (tb == null) tb = new Tone(0.0, 0.0, estimateLuminance(base));
+            band.sort(Comparator.comparingDouble(m -> {
+                Tone t = tones.get(m);
+                return t != null ? t.lum : 0.5;
+            }));
             List<Material> pick = new ArrayList<>();
             int idx = 0; double best = 1e9;
             for (int i = 0; i < band.size(); i++) {
-                double dl = Math.abs(tones.get(band.get(i)).lum - tb.lum);
+                Tone t = tones.get(band.get(i));
+                double lum = (t != null ? t.lum : 0.5);
+                double dl = Math.abs(lum - tb.lum);
                 if (dl < best) { best = dl; idx = i; }
             }
             pick.add(band.get(Math.min(idx, Math.max(0, band.size()-1))));
@@ -326,6 +335,65 @@ public final class BlockToneIndex {
         result.add(base);
         while (result.size() < 8) result.add(base);
         return result;
+    }
+
+    // Map non-full and special-case blocks to a closest full block representative for tone/gradient
+    private Material mapToClosestFullBlock(Material base) {
+        if (base == null) return null;
+        if (fullBlocks.contains(base)) return base;
+        String n = base.name();
+        // Redstone components -> REDSTONE_BLOCK
+        if (n.contains("REDSTONE") || n.contains("REPEATER") || n.contains("COMPARATOR") || n.equals("LEVER")) {
+            return Material.REDSTONE_BLOCK;
+        }
+        // Glass panes -> corresponding glass
+        if (n.endsWith("_GLASS_PANE")) {
+            String tryName = n.substring(0, n.length() - 5); // drop _PANE
+            Material m = Material.matchMaterial(tryName);
+            if (m != null && fullBlocks.contains(m)) return m;
+        }
+        // Slabs/Stairs/Walls/Fences/Buttons/Doors/Trapdoors -> family base
+        String[] suffixes = {"_SLAB","_STAIRS","_WALL","_FENCE","_FENCE_GATE","_BUTTON","_DOOR","_TRAPDOOR","_PRESSURE_PLATE","_SIGN","_HANGING_SIGN","_CARPET","_PANE"};
+        for (String suf : suffixes) {
+            if (n.endsWith(suf)) {
+                String baseName = n.substring(0, n.length() - suf.length());
+                // fix bricks plural
+                if (baseName.endsWith("_BRICK")) baseName = baseName + "S";
+                // some stairs names use STONE_BRICK -> STONE_BRICKS, etc.
+                Material m = Material.matchMaterial(baseName);
+                if (m != null && fullBlocks.contains(m)) return m;
+                // wood family -> PLANKS
+                String[] woods = {"OAK","SPRUCE","BIRCH","JUNGLE","ACACIA","DARK_OAK","MANGROVE","CHERRY","WARPED","CRIMSON","BAMBOO"};
+                for (String wname : woods) {
+                    if (baseName.startsWith(wname)) {
+                        Material pl = Material.matchMaterial(wname + "_PLANKS");
+                        if (pl != null && fullBlocks.contains(pl)) return pl;
+                    }
+                }
+                // stone-like fallback
+                Material stone = Material.STONE;
+                if (fullBlocks.contains(stone)) return stone;
+            }
+        }
+        // Generic fallbacks for leaves/plants -> nearest stone
+        if (n.contains("LEAVES") || n.contains("FLOWER") || n.contains("MOSS") || n.contains("VINE") || n.contains("GRASS")) {
+            return Material.STONE;
+        }
+        // Default: if base has tone, return base; otherwise stone
+        if (tones.containsKey(base)) return base;
+        return Material.STONE;
+    }
+
+    private double estimateLuminance(Material m) {
+        String n = m.name();
+        if (n.contains("BLACK") || n.contains("DEEP") || n.contains("DARK")) return 0.12;
+        if (n.contains("WHITE") || n.contains("LIGHT") || n.contains("QUARTZ")) return 0.9;
+        if (n.contains("RED")) return 0.4;
+        if (n.contains("BLUE")) return 0.35;
+        if (n.contains("GREEN")) return 0.4;
+        if (n.contains("BROWN") || n.contains("GRANITE")) return 0.35;
+        if (n.contains("GRAY") || n.contains("STONE") || n.contains("COBBLE")) return 0.5;
+        return 0.6;
     }
 
     private double dist(Tone a, Tone b) {

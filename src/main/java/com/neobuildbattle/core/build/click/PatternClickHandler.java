@@ -56,13 +56,11 @@ public final class PatternClickHandler implements GuiClickHandler {
                 int amt = Math.max(1, cursor.getAmount());
                 delta = left ? amt : -amt;
                 if (isGradientToken(cursor)) {
-                    // Update gradient weight and tones from the token
-                    int newWeight = Math.max(0, pattern.getGradientWeight() + delta);
-                    pattern.setGradientWeight(newWeight);
+                    // Update gradient (distinct per base)
                     Material base = parseGradientBase(cursor);
                     if (base != null) {
                         var list = plugin.getBlockToneIndex().gradientFor(base);
-                        pattern.setGradient(new GradientTones(list));
+                        pattern.addOrUpdateGradient(base, new GradientTones(list), delta);
                     }
                 } else if (cursor.getType().isBlock() || cursor.getType() == Material.BARRIER) {
                     Material target = cursor.getType() == Material.BARRIER ? Material.AIR : cursor.getType();
@@ -80,8 +78,11 @@ public final class PatternClickHandler implements GuiClickHandler {
                 Material target;
                 if (current.getType() == Material.BARRIER) target = Material.AIR; else target = current.getType();
                 if (current.getType() == Material.PAPER && isGradientToken(current)) {
-                    int newWeight = Math.max(0, pattern.getGradientWeight() + delta);
-                    pattern.setGradientWeight(newWeight);
+                    Material base = parseGradientBase(current);
+                    if (base != null) {
+                        var list = plugin.getBlockToneIndex().gradientFor(base);
+                        pattern.addOrUpdateGradient(base, new GradientTones(list), delta);
+                    }
                 } else if (target == Material.AIR || target.isBlock()) {
                     if (target != Material.AIR) {
                         String n = target.name();
@@ -111,13 +112,14 @@ public final class PatternClickHandler implements GuiClickHandler {
             }
         }
         int idx = 0;
-        // First, place gradient token if present
-        if (pattern.getGradientWeight() > 0 && idx < 28) {
+        // Place all gradient tokens with their base in name
+        for (var ge : pattern.getGradientWeightsView().entrySet()) {
+            if (idx >= 28) break;
             int slot = (1 + (idx / 7)) * 9 + (1 + (idx % 7));
             ItemStack paper = new ItemStack(Material.PAPER);
             ItemMeta meta = paper.getItemMeta();
             if (meta != null) {
-                meta.setDisplayName(ChatColor.BLUE + "Градиент" + ChatColor.GRAY + " x" + pattern.getGradientWeight());
+                meta.setDisplayName(ChatColor.BLUE + "Градиент: " + ge.getKey().name() + ChatColor.GRAY + " x" + ge.getValue());
                 paper.setItemMeta(meta);
             }
             inv.setItem(slot, paper);
@@ -162,12 +164,15 @@ public final class PatternClickHandler implements GuiClickHandler {
         if (meta == null) return null;
         String name = meta.getDisplayName();
         if (name == null) return null;
-        String p = ChatColor.BLUE + "Градиент: ";
-        if (name.startsWith(p)) {
-            String matName = name.substring(p.length()).trim();
-            try {
-                return Material.matchMaterial(matName);
-            } catch (Throwable ignored) {}
+        // Strip colors and parse after prefix, before optional " xN"
+        String raw = org.bukkit.ChatColor.stripColor(name);
+        String p = "Градиент: ";
+        if (raw.startsWith(p)) {
+            String tail = raw.substring(p.length()).trim();
+            int xPos = tail.indexOf(" x");
+            String matName = xPos >= 0 ? tail.substring(0, xPos).trim() : tail;
+            Material m = Material.matchMaterial(matName);
+            if (m != null) return m;
         }
         return null;
     }
