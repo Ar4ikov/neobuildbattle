@@ -475,7 +475,7 @@ public final class BuildToolsManager implements Listener {
                 mask.remove(current.getType());
             }
             // Re-render
-            adv.handleReplaceTool(player, org.bukkit.event.block.Action.RIGHT_CLICK_AIR, false);
+            adv.handleReplaceTool(player, org.bukkit.event.block.Action.RIGHT_CLICK_AIR, false, null);
         } else {
             event.setCancelled(true);
         }

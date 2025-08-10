@@ -87,7 +87,13 @@ public final class AdvancedToolsManager implements Listener {
             case COPY -> performCopy(p);
             case PASTE -> clipboardService.pasteAtFeet(p);
             case PASTE_AIR_TOGGLE -> clipboardService.setPasteAir(p, !clipboardService.isPasteAir(p));
-            case REPLACE -> handleReplaceTool(p, action, sneaking);
+            case REPLACE -> {
+                org.bukkit.Material clickedMat = null;
+                try {
+                    if (e.getClickedBlock() != null) clickedMat = e.getClickedBlock().getType();
+                } catch (Throwable ignored) {}
+                handleReplaceTool(p, action, sneaking, clickedMat);
+            }
         }
     }
 
@@ -98,7 +104,7 @@ public final class AdvancedToolsManager implements Listener {
         return replaceMasks.computeIfAbsent(p.getUniqueId(), id -> new java.util.HashSet<>());
     }
 
-    public void handleReplaceTool(Player p, Action action, boolean sneaking) {
+    public void handleReplaceTool(Player p, Action action, boolean sneaking, org.bukkit.Material clickedMaterial) {
         if (action == Action.LEFT_CLICK_BLOCK || action == Action.LEFT_CLICK_AIR) {
             // Replace all masked blocks in selection with pattern
             Selection s = selectionService.getSelection(p);
@@ -107,14 +113,16 @@ public final class AdvancedToolsManager implements Listener {
                 return;
             }
             java.util.Set<Material> mask = getMask(p);
-            if (mask.isEmpty()) {
-                p.sendActionBar(net.kyori.adventure.text.Component.text(org.bukkit.ChatColor.RED + "Пустая маска замены"));
-                return;
-            }
+            boolean useTemp = mask.isEmpty() && clickedMaterial != null && clickedMaterial.isBlock();
             BlockPattern pattern = getOrCreatePattern(p);
+            pattern.reseedRandom();
             FillAlgorithm.MaterialProvider provider = (x, y, z) -> {
                 Material m = p.getWorld().getBlockAt(x, y, z).getType();
-                if (!mask.contains(m)) return null;
+                if (useTemp) {
+                    if (m != clickedMaterial) return null;
+                } else {
+                    if (!mask.contains(m)) return null;
+                }
                 return pattern.pick(x, y, z);
             };
             // Use solid fill iterator over selection and only change where provider != null
@@ -160,17 +168,8 @@ public final class AdvancedToolsManager implements Listener {
                 p.sendActionBar(net.kyori.adventure.text.Component.text(org.bukkit.ChatColor.YELLOW + "Маска очищена"));
                 return;
             }
-            // Open mask GUI
-            Inventory inv = Bukkit.createInventory(new com.neobuildbattle.core.build.gui.BuildGuiHolder(com.neobuildbattle.core.build.gui.GuiType.REPLACE_MASK), 54, org.bukkit.ChatColor.YELLOW + "Маска замены");
-            com.neobuildbattle.core.build.BuildToolsManager.fillBackground(inv);
-            // Put current mask items into inner grid
-            int idx = 0;
-            for (Material m : getMask(p)) {
-                if (idx >= 28) break;
-                int slot = (1 + (idx / 7)) * 9 + (1 + (idx % 7));
-                inv.setItem(slot, new ItemStack(m));
-                idx++;
-            }
+            // Open mask GUI (with clear inner area)
+            Inventory inv = ReplaceMaskGui.render(getMask(p));
             Bukkit.getScheduler().runTask(plugin, () -> p.openInventory(inv));
         }
     }
@@ -206,6 +205,7 @@ public final class AdvancedToolsManager implements Listener {
         }
         World w = p.getWorld();
         BlockPattern pattern = getOrCreatePattern(p);
+        pattern.reseedRandom();
         // Clip to inner play area
         var plot = plugin.getPlotManager().getPlotByOwner(p.getUniqueId());
         int innerMinX = plot != null ? plot.getMinX() + 3 : Integer.MIN_VALUE;
